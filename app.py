@@ -47,6 +47,17 @@ except Exception as e:
 
 # Load dataset on startup
 def load_dataset():
+    """
+    Loads and preprocesses the Reddit dataset from the JSONL file.
+    
+    This function:
+    1. Reads the JSONL file into a pandas DataFrame
+    2. Normalizes nested JSON structure 
+    3. Converts Unix timestamps to datetime objects
+    
+    Returns:
+        bool: True if dataset loaded successfully, False otherwise
+    """
     global data
     try:
         if os.path.exists(DATASET_PATH):
@@ -67,10 +78,32 @@ def load_dataset():
 
 @app.route('/')
 def index():
+    """
+    Renders the main dashboard page.
+    
+    Returns:
+        HTML: The index.html template that serves as the main dashboard interface
+    """
     return render_template('index.html')
 
 @app.route('/api/timeseries', methods=['GET'])
 def get_timeseries():
+    """
+    Generates time series data for posts matching a query within a date range.
+    
+    This endpoint:
+    1. Filters data based on the search query and optional date range
+    2. Groups posts by date
+    3. Counts posts per date to create the time series
+    
+    Query Parameters:
+        query (str): Search term to filter posts
+        start_date (str, optional): Start date for filtering (YYYY-MM-DD)
+        end_date (str, optional): End date for filtering (YYYY-MM-DD)
+    
+    Returns:
+        JSON: Array of objects containing date and post count
+    """
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -97,6 +130,21 @@ def get_timeseries():
 
 @app.route('/api/top_contributors', methods=['GET'])
 def get_top_contributors():
+    """
+    Identifies the most active authors for a given search query.
+    
+    This endpoint:
+    1. Filters data based on the search query
+    2. Counts posts by each author
+    3. Returns the top authors by post count
+    
+    Query Parameters:
+        query (str): Search term to filter posts
+        limit (int, optional): Number of top contributors to return (default: 10)
+    
+    Returns:
+        JSON: Array of objects containing author names and their post counts
+    """
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -112,6 +160,21 @@ def get_top_contributors():
 
 @app.route('/api/network', methods=['GET'])
 def get_network():
+    """
+    Creates a network graph of user interactions for posts matching a query.
+    
+    This endpoint:
+    1. Builds a directed graph where nodes are authors and edges represent interactions
+    2. Sizes nodes based on post count
+    3. Applies community detection to identify clusters of users
+    4. Formats the graph for D3.js visualization
+    
+    Query Parameters:
+        query (str): Search term to filter posts
+    
+    Returns:
+        JSON: Object containing nodes and links for network visualization
+    """
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -175,6 +238,23 @@ def get_network():
 
 @app.route('/api/topics', methods=['GET'])
 def get_topics():
+    """
+    Performs topic modeling on posts matching a query using LDA.
+    
+    This endpoint:
+    1. Applies Latent Dirichlet Allocation to identify key topics in the content
+    2. Extracts top words for each topic with their weights
+    3. Finds representative documents for each topic
+    4. Analyzes how topics evolve over time
+    
+    Query Parameters:
+        query (str): Search term to filter posts
+        n_topics (int, optional): Number of topics to identify (default: 5)
+    
+    Returns:
+        JSON: Object containing topics, their key words, representative posts,
+              topic evolution over time, and coherence metrics
+    """
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -288,6 +368,23 @@ def get_topics():
 
 @app.route('/api/coordinated', methods=['GET'])
 def get_coordinated_behavior():
+    """
+    Detects potentially coordinated posting behavior within the dataset.
+    
+    This endpoint:
+    1. Identifies posts with similar content published within a short time window
+    2. Uses TF-IDF vectorization and cosine similarity to measure content similarity
+    3. Creates a network of authors who post similar content in coordination
+    4. Groups similar posts into coordination clusters
+    
+    Query Parameters:
+        query (str): Search term to filter posts
+        time_window (int, optional): Time window in seconds to consider posts coordinated (default: 3600)
+        similarity_threshold (float, optional): Minimum similarity score to consider posts related (default: 0.7)
+    
+    Returns:
+        JSON: Object containing coordinated networks, groups, and metrics
+    """
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -474,6 +571,20 @@ def get_coordinated_behavior():
 
 @app.route('/api/ai_summary', methods=['GET'])
 def get_ai_summary():
+    """
+    Generates an AI-powered summary of posts matching a query.
+    
+    This endpoint:
+    1. Uses either a local T5 model or the Groq API (if configured) to analyze the data
+    2. Extracts key metrics, patterns, and insights
+    3. Produces a comprehensive natural language summary of the findings
+    
+    Query Parameters:
+        query (str): Search term to filter posts
+    
+    Returns:
+        JSON: Object containing the AI-generated summary, metrics, and model information
+    """
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -620,6 +731,21 @@ def get_ai_summary():
 
 @app.route('/api/common_words', methods=['GET'])
 def get_common_words():
+    """
+    Identifies the most common words in posts matching a query.
+    
+    This endpoint:
+    1. Filters posts based on the search query
+    2. Tokenizes and counts word frequency across all posts
+    3. Returns the most common words with their counts
+    
+    Query Parameters:
+        query (str): Search term to filter posts
+        limit (int, optional): Number of common words to return (default: 50)
+    
+    Returns:
+        JSON: Array of objects containing words and their occurrence counts
+    """
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -650,6 +776,242 @@ def get_common_words():
     result = [{'word': words[i], 'count': int(freqs[i])} for i in sorted_indices]
     
     return jsonify(result)
+
+@app.route('/api/dynamic_description', methods=['GET'])
+def get_dynamic_description():
+    """
+    Generates dynamic, contextual descriptions for dashboard sections using the Groq API.
+    
+    This endpoint:
+    1. Takes the current section, query, and available data metrics
+    2. Uses the LLaMA model via Groq to generate relevant, insightful descriptions
+    3. Returns customized documentation that explains the data in context
+    
+    Query Parameters:
+        section (str): The dashboard section requiring documentation
+        query (str): The current search query
+        data_context (str, optional): JSON string with relevant metrics for context
+        detail_level (str, optional): Level of detail for descriptions (basic, detailed, expert)
+    
+    Returns:
+        JSON: Object containing the generated description
+    """
+    if data is None:
+        return jsonify({'error': 'No data loaded'}), 400
+    
+    section = request.args.get('section', '')
+    query = request.args.get('query', '')
+    data_context = request.args.get('data_context', '{}')
+    detail_level = request.args.get('detail_level', 'detailed')
+    
+    # Default response in case generation fails
+    default_description = {
+        "timeseries": "This visualization tracks post volume over time, revealing when discussions peaked, declined, or remained steady.",
+        "network": "This network graph maps connections between users based on their interactions. Nodes represent users and edges show interactions between them.",
+        "topics": "This analysis identifies distinct topics within the content using Latent Dirichlet Allocation (LDA).",
+        "coordinated": "This analysis detects potentially coordinated posting behavior by identifying similar content posted within a short time window.",
+        "word_cloud": "The word cloud visualizes the most frequently occurring terms in the analyzed posts.",
+        "contributors": "This chart identifies the most active users who have posted content matching your search query.",
+        "overview": "This section provides a high-level summary of the data analysis results.",
+        "ai_insights": "This section uses machine learning to generate human-readable insights from the data.",
+        "data_story": "This synthesizes analyses into a cohesive narrative, highlighting key trends and patterns."
+    }
+    
+    try:
+        # Parse data context if provided
+        context_data = {}
+        try:
+            import json
+            context_data = json.loads(data_context)
+        except:
+            pass
+        
+        # Only proceed with Groq if API key is available
+        if not has_groq or not GROQ_API_KEY:
+            return jsonify({'description': default_description.get(section, "This section analyzes data based on your query.")})
+        
+        # Enhanced section context with more analytical details
+        section_context = {
+            "timeseries": {
+                "title": "time series visualization showing post frequency over time",
+                "tech": "D3.js line and area charts with hoverable data points",
+                "metrics": "post volume, trend direction, peak detection, temporal patterns",
+                "insights": "conversation lifecycle, viral moments, correlation with external events, posting patterns"
+            },
+            "network": {
+                "title": "network graph showing interactions between users",
+                "tech": "force-directed graph with community detection via Louvain method",
+                "metrics": "centrality, betweenness, clustering coefficient, modularity",
+                "insights": "community structure, influence patterns, information flow, echo chambers"
+            },
+            "topics": {
+                "title": "topic modeling analysis showing key themes in the content",
+                "tech": "Latent Dirichlet Allocation (LDA) with coherence optimization",
+                "metrics": "topic coherence, keyword distribution, temporal evolution, topic similarity",
+                "insights": "narrative framing, emergent themes, semantic relationships, concept clusters"
+            },
+            "coordinated": {
+                "title": "analysis of potentially coordinated posting behavior",
+                "tech": "temporal-semantic clustering with TF-IDF and cosine similarity",
+                "metrics": "temporal proximity, content similarity, coordination network density",
+                "insights": "organized behavior patterns, information campaigns, authentic vs. inauthentic behavior"
+            },
+            "word_cloud": {
+                "title": "word cloud visualization of frequent terms",
+                "tech": "frequency-weighted layout with visual encoding of prominence",
+                "metrics": "term frequency, inverse document frequency, relative prominence",
+                "insights": "terminology patterns, vocabulary choices, discourse framing, key concepts"
+            },
+            "contributors": {
+                "title": "chart of top contributors/authors",
+                "tech": "comparative visualization of posting frequency by author",
+                "metrics": "post volume, author distribution, participation inequality",
+                "insights": "voice dominance, conversation drivers, participation patterns"
+            },
+            "overview": {
+                "title": "dashboard overview section with key metrics",
+                "tech": "multi-dimensional summary statistics with visual highlighting",
+                "metrics": "post volume, unique authors, engagement, temporal span",
+                "insights": "conversation scale, community engagement, topic resonance"
+            },
+            "ai_insights": {
+                "title": "AI-generated summary of insights",
+                "tech": "large language model analysis of aggregated metrics and content",
+                "metrics": "semantic patterns, trend analysis, anomaly detection",
+                "insights": "narrative interpretation, hidden patterns, context from broader knowledge"
+            },
+            "data_story": {
+                "title": "narrative that connects different analyses into a cohesive story",
+                "tech": "multi-faceted data synthesis with temporal and thematic organization",
+                "metrics": "pattern correlation, event sequencing, thematic connection",
+                "insights": "holistic understanding, causal relationships, narrative arc"
+            }
+        }
+        
+        section_info = section_context.get(section, {
+            "title": "a data visualization",
+            "tech": "interactive data visualization",
+            "metrics": "relevant statistical measures",
+            "insights": "patterns and relationships in the data"
+        })
+        
+        # Adjust the verbosity based on detail level
+        detail_settings = {
+            "basic": {
+                "description": "Write a brief explanation (2-3 sentences)",
+                "max_tokens": 150,
+                "sections": 1
+            },
+            "detailed": {
+                "description": "Write a comprehensive explanation (6-8 sentences with specific details)",
+                "max_tokens": 350,
+                "sections": 2
+            },
+            "expert": {
+                "description": "Write an in-depth analytical explanation (10+ sentences with technical details)",
+                "max_tokens": 500,
+                "sections": 3
+            }
+        }
+        
+        detail_config = detail_settings.get(detail_level, detail_settings["detailed"])
+        
+        # Build enhanced contextual data based on the section
+        enhanced_context = ""
+        if context_data:
+            if section == "timeseries" and "dataPoints" in context_data:
+                filtered_data = data[data['selftext'].str.contains(query, case=False, na=False) | 
+                                    data['title'].str.contains(query, case=False, na=False)]
+                if len(filtered_data) > 0:
+                    date_range = f"{filtered_data['created_utc'].min().strftime('%Y-%m-%d')} to {filtered_data['created_utc'].max().strftime('%Y-%m-%d')}"
+                    peak_day = filtered_data.groupby(filtered_data['created_utc'].dt.date).size().idxmax()
+                    peak_count = filtered_data.groupby(filtered_data['created_utc'].dt.date).size().max()
+                    enhanced_context = f"The data spans from {date_range} with {len(filtered_data)} total posts. The peak day was {peak_day} with {peak_count} posts."
+            
+            elif section == "topics" and "topicCount" in context_data:
+                topic_count = context_data.get("topicCount", 5)
+                # Try to get top topics from data for richer context
+                try:
+                    topic_data = pd.read_json(f"/api/topics?n_topics={topic_count}&query={query}")
+                    if 'topics' in topic_data and len(topic_data['topics']) > 0:
+                        top_topic_words = ', '.join(topic_data['topics'][0]['top_words'][:5])
+                        enhanced_context = f"Analysis found {topic_count} distinct topics. The most prominent topic contains these key terms: {top_topic_words}."
+                except:
+                    enhanced_context = f"Analysis is configured to find {topic_count} distinct topics in the content."
+            
+            elif section == "network":
+                # Try to enrich with network metrics
+                try:
+                    node_count = context_data.get("nodeCount", 0)
+                    filtered_data = data[data['selftext'].str.contains(query, case=False, na=False) | 
+                                        data['title'].str.contains(query, case=False, na=False)]
+                    author_count = filtered_data['author'].nunique()
+                    enhanced_context = f"The network visualization shows interactions between {node_count} users out of {author_count} total authors in the dataset."
+                except:
+                    pass
+            
+            # Add general context if no specific enhancement was added
+            if not enhanced_context and context_data:
+                enhanced_context = f"The visualization is based on these metrics: {json.dumps(context_data)}. "
+        
+        # Build prompt with enhanced context and more detailed requirements
+        section_type = section_info["title"]
+        
+        prompt = f"""
+        {detail_config["description"]} for {section_type} in a social media analysis dashboard.
+        
+        QUERY CONTEXT: The user is exploring data about "{query}".
+        
+        DATA CONTEXT: {enhanced_context}
+        
+        TECHNICAL DETAILS: This visualization uses {section_info["tech"]} to analyze {section_info["metrics"]}.
+        
+        Your description should:
+        1. Explain what this visualization shows specifically for the query "{query}"
+        2. Highlight the key metrics and what patterns they might reveal
+        3. Discuss potential insights that could be derived from this visualization
+        4. Explain why these insights are valuable for understanding conversations about "{query}"
+        5. Use concrete details where possible rather than generic statements
+        
+        For expert level descriptions, include technical interpretation guidance and explain analytical considerations.
+        
+        Return ONLY the descriptive text without any additional formatting or meta-commentary.
+        """
+        
+        # Call Groq API for the description with increased token limit
+        groq_api_url = "https://api.groq.com/openai/v1/chat/completions"
+        
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": "llama3-8b-8192",
+            "messages": [
+                {"role": "system", "content": "You are a data visualization expert specializing in social media analytics. You explain complex data patterns in clear, insightful language that highlights meaningful insights."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.7,
+            "max_tokens": detail_config["max_tokens"]
+        }
+        
+        response = requests.post(groq_api_url, headers=headers, json=payload)
+        
+        if response.status_code == 200:
+            result = response.json()
+            description = result["choices"][0]["message"]["content"].strip()
+            return jsonify({'description': description})
+        else:
+            # Fallback to default descriptions
+            return jsonify({'description': default_description.get(section, "This section analyzes data based on your query.")})
+            
+    except Exception as e:
+        print(f"Error generating dynamic description: {str(e)}")
+        return jsonify({
+            'description': default_description.get(section, "This section analyzes data based on your query."),
+            'error': str(e)
+        })
 
 if __name__ == '__main__':
     # Load dataset on startup

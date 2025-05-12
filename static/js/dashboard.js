@@ -1,3 +1,41 @@
+/**
+ * Social Media Analysis Dashboard - Frontend JavaScript
+ * ===================================================
+ * 
+ * This file contains all the client-side functionality for the Social Media Analysis Dashboard.
+ * It handles UI interaction, API calls, data processing, and visualization rendering.
+ * 
+ * Main Components:
+ * ----------------
+ * 1. Main UI control handlers:
+ *    - Search query processing
+ *    - Tab management
+ *    - Showing/hiding loading indicators
+ *    - Parameter controls (sliders, date ranges)
+ * 
+ * 2. Data fetching and processing:
+ *    - API calls to backend endpoints
+ *    - Data transformation for visualizations
+ *    - Progressive loading of heavy analyses
+ * 
+ * 3. Visualization modules:
+ *    - Time series graph (post frequency over time)
+ *    - Network visualization (user interactions)
+ *    - Topic analysis (LDA topic models)
+ *    - Coordinated behavior detection
+ *    - Word cloud generation
+ *    - Key metrics and statistics
+ * 
+ * 4. Data storytelling functionality:
+ *    - Narrative generation from analytical results
+ *    - Key insights extraction
+ *    - Visual elements to enhance understanding
+ * 
+ * The dashboard follows a modular design where each analytical component 
+ * operates independently but can be integrated into a cohesive data story.
+ * Visualizations are rendered using D3.js and other specialized libraries.
+ */
+
 // Global state
 let activeQuery = '';
 let startDate = '';
@@ -12,6 +50,48 @@ function showLoading(show) {
         loadingElement.style.display = 'block';
     } else {
         loadingElement.style.display = 'none';
+    }
+}
+
+// Function to get dynamic description for a section
+async function getDynamicDescription(section, query, context = {}) {
+    try {
+        // Convert context object to JSON string
+        const contextStr = JSON.stringify(context);
+        
+        // Make API call to get dynamic description
+        const response = await fetch(`/api/dynamic_description?section=${section}&query=${encodeURIComponent(query)}&data_context=${encodeURIComponent(contextStr)}`);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to fetch description: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        return data.description || "This section analyzes data based on your query.";
+    } catch (error) {
+        console.error(`Error getting dynamic description for ${section}:`, error);
+        return "This section analyzes data based on your query.";
+    }
+}
+
+// Function to update section description
+async function updateSectionDescription(sectionId, descriptionElementSelector, context = {}) {
+    if (!activeQuery) return; // Don't update if no query is active
+    
+    try {
+        const descriptionElement = document.querySelector(descriptionElementSelector);
+        if (!descriptionElement) return;
+        
+        // Show loading state
+        descriptionElement.innerHTML = `<div class="spinner-border spinner-border-sm" role="status"></div> Generating description...`;
+        
+        // Get dynamic description
+        const description = await getDynamicDescription(sectionId, activeQuery, context);
+        
+        // Update the description element
+        descriptionElement.innerHTML = `<i class="bi bi-info-circle"></i> ${description}`;
+    } catch (error) {
+        console.error(`Error updating description for ${sectionId}:`, error);
     }
 }
 
@@ -64,11 +144,22 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
             updateWordCloud(query).catch(error => {
                 console.error('Error updating word cloud:', error);
                 document.getElementById('word-cloud').innerHTML = '<p class="text-danger">Error loading word cloud data</p>';
-            })
+            }),
         ];
 
         // Wait for critical components first
         await Promise.allSettled(criticalPromises);
+        
+        // Update dynamic descriptions for the overview sections first
+        const overviewDescriptionPromises = [
+            updateSectionDescription('ai_insights', '#ai-insights-description'),
+            updateSectionDescription('data_story', '#data-story-description'),
+            updateSectionDescription('word_cloud', '#word-cloud-description'),
+            updateSectionDescription('contributors', '#contributors-description')
+        ];
+        
+        // Process overview descriptions in the background
+        Promise.allSettled(overviewDescriptionPromises);
         
         // Hide the main loading spinner as critical content is loaded
         showLoading(false);
@@ -95,12 +186,21 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
                     document.getElementById('timeseries-chart').innerHTML = '<p class="text-danger">Error loading time series data</p>';
                 });
                 
+                // Update timeseries description after data is loaded
+                updateSectionDescription('timeseries', '#timeseries-description', {
+                    dataPoints: document.querySelectorAll('#timeseries-chart circle.dot').length
+                });
+                
                 // Phase 3: Now load the remaining heavier visualizations in the background
                 // This allows the user to start interacting with the dashboard while heavy visualizations load
                 setTimeout(async () => {
                     // Process remaining heavy visualizations in sequence to reduce load
                     try {
                         await updateTopics(query);
+                        // Update topics description after data is loaded
+                        updateSectionDescription('topics', '#topics-description', {
+                            topicCount: document.getElementById('topics-count').value
+                        });
                     } catch (error) {
                         console.error('Error updating topics:', error);
                         document.getElementById('topics-container').innerHTML = '<p class="text-danger">Error loading topics data</p>';
@@ -108,6 +208,10 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
                     
                     try {
                         await updateNetwork(query);
+                        // Update network description after data is loaded
+                        updateSectionDescription('network', '#network-description', {
+                            nodeCount: document.querySelectorAll('#network-graph circle').length
+                        });
                     } catch (error) {
                         console.error('Error updating network:', error);
                         document.getElementById('network-graph').innerHTML = '<p class="text-danger">Error loading network data</p>';
@@ -115,6 +219,11 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
                     
                     try {
                         await updateCoordinatedBehavior();
+                        // Update coordinated behavior descriptions after data is loaded
+                        updateSectionDescription('coordinated', '#coordinated-description', {
+                            timeWindow: document.getElementById('time-window').value,
+                            similarityThreshold: document.getElementById('similarity-threshold').value
+                        });
                     } catch (error) {
                         console.error('Error updating coordinated behavior:', error);
                         document.getElementById('coordinated-graph').innerHTML = '<p class="text-danger">Error loading coordinated behavior data</p>';
@@ -153,12 +262,21 @@ document.getElementById('similarity-threshold').addEventListener('input', (e) =>
 document.getElementById('update-topics-btn').addEventListener('click', async () => {
     showLoading(true);
     await updateTopics(activeQuery);
+    // Update topics description again after refresh
+    updateSectionDescription('topics', '#topics-description', {
+        topicCount: document.getElementById('topics-count').value
+    });
     showLoading(false);
 });
 
 document.getElementById('update-coordinated-btn').addEventListener('click', async () => {
     showLoading(true);
     await updateCoordinatedBehavior();
+    // Update coordinated description again after refresh
+    updateSectionDescription('coordinated', '#coordinated-description', {
+        timeWindow: document.getElementById('time-window').value,
+        similarityThreshold: document.getElementById('similarity-threshold').value
+    });
     showLoading(false);
 });
 

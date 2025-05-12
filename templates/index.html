@@ -498,6 +498,9 @@
                     <div class="col-md-8">
                         <div class="chart-container">
                             <h3><i class="bi bi-robot"></i> AI-Generated Insights</h3>
+                            <div class="alert alert-info mb-3" id="ai-insights-description">
+                                <i class="bi bi-info-circle"></i> Loading AI-generated insights for your query...
+                            </div>
                             <div id="ai-summary" class="insight-card">
                                 <p class="text-muted">Enter a search query and analyze data to generate AI insights.</p>
                             </div>
@@ -506,6 +509,9 @@
                         <!-- Data Story Section -->
                         <div class="chart-container mt-4">
                             <h3><i class="bi bi-book"></i> Data Story</h3>
+                            <div class="alert alert-info mb-3" id="data-story-description">
+                                <i class="bi bi-info-circle"></i> Loading data story insights for your query...
+                            </div>
                             <div id="data-story" class="card">
                                 <div class="card-body">
                                     <p class="text-muted">Enter a search query and analyze data to generate a comprehensive data story.</p>
@@ -518,6 +524,9 @@
                     <div class="col-md-4">
                         <div class="chart-container">
                             <h3><i class="bi bi-speedometer2"></i> Key Metrics</h3>
+                            <div class="alert alert-info mb-3" id="metrics-description">
+                                <i class="bi bi-info-circle"></i> Loading metrics insights for your query...
+                            </div>
                             <div id="metrics-container">
                                 <div class="row g-3">
                                     <div class="col-6">
@@ -555,6 +564,9 @@
                     <div class="col-md-6">
                         <div class="chart-container">
                             <h3><i class="bi bi-cloud"></i> Word Cloud</h3>
+                            <div class="alert alert-info mb-3" id="word-cloud-description">
+                                <i class="bi bi-info-circle"></i> Loading word cloud insights for your query...
+                            </div>
                             <div id="word-cloud" class="word-cloud"></div>
                         </div>
                     </div>
@@ -563,6 +575,9 @@
                     <div class="col-md-6">
                         <div class="chart-container">
                             <h3><i class="bi bi-person-badge"></i> Top Contributors</h3>
+                            <div class="alert alert-info mb-3" id="contributors-description">
+                                <i class="bi bi-info-circle"></i> Loading contributor insights for your query...
+                            </div>
                             <div id="contributors-overview"></div>
                         </div>
                     </div>
@@ -573,6 +588,9 @@
             <div class="tab-pane fade" id="timeseries-panel" role="tabpanel" aria-labelledby="timeseries-tab">
                 <div class="chart-container">
                     <h3><i class="bi bi-graph-up"></i> Time Series Analysis</h3>
+                    <div class="alert alert-info mb-3" id="timeseries-description">
+                        <i class="bi bi-info-circle"></i> Loading time series insights for your query...
+                    </div>
                     <p class="text-muted mb-4">Shows post frequency over time for the selected query.</p>
                     <div id="timeseries-chart"></div>
                 </div>
@@ -582,6 +600,9 @@
             <div class="tab-pane fade" id="network-panel" role="tabpanel" aria-labelledby="network-tab">
                 <div class="chart-container">
                     <h3><i class="bi bi-diagram-3"></i> User Interaction Network</h3>
+                    <div class="alert alert-info mb-3" id="network-description">
+                        <i class="bi bi-info-circle"></i> Loading network analysis insights for your query...
+                    </div>
                     <p class="text-muted mb-4">Visualizes connections between users based on interactions. Larger nodes indicate more posts, and colors represent different communities.</p>
                     <div id="network-graph"></div>
                 </div>
@@ -591,6 +612,9 @@
             <div class="tab-pane fade" id="topics-panel" role="tabpanel" aria-labelledby="topics-tab">
                 <div class="chart-container">
                     <h3><i class="bi bi-chat-square-text"></i> Topic Analysis</h3>
+                    <div class="alert alert-info mb-3" id="topics-description">
+                        <i class="bi bi-info-circle"></i> Loading topic analysis insights for your query...
+                    </div>
                     <p class="text-muted mb-4">Identifies key topics in the content using Latent Dirichlet Allocation (LDA).</p>
                     <div class="row align-items-end mb-4">
                         <div class="col-md-8">
@@ -613,6 +637,9 @@
                     <div class="col-md-6">
                         <div class="chart-container">
                             <h3><i class="bi bi-people"></i> Coordinated Behavior Network</h3>
+                            <div class="alert alert-info mb-3" id="coordinated-description">
+                                <i class="bi bi-info-circle"></i> Loading coordinated behavior insights for your query...
+                            </div>
                             <p class="text-muted mb-4">Shows authors who post similar content within a short time window.</p>
                             <div class="mb-4">
                                 <label for="time-window" class="form-label fw-medium">Time Window (seconds): <span id="time-window-value" class="badge bg-light text-dark">3600</span></label>
@@ -631,6 +658,9 @@
                     <div class="col-md-6">
                         <div class="chart-container">
                             <h3><i class="bi bi-list-ul"></i> Coordinated Post Groups</h3>
+                            <div class="alert alert-info mb-3" id="coordinated-groups-description">
+                                <i class="bi bi-info-circle"></i> Loading coordinated groups insights for your query...
+                            </div>
                             <div id="coordinated-stats" class="mb-4">
                                 <div class="row">
                                     <div class="col-md-6">
