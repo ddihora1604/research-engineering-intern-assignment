@@ -15,6 +15,8 @@ CORS(app)
 
 # Global variable to store the loaded data
 data = None
+# Path to the dataset file
+DATASET_PATH = "./data/data.jsonl"
 # Initialize tokenizer and model for summarization
 try:
     tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-small")
@@ -23,30 +25,29 @@ except:
     tokenizer = None
     model = None
 
+# Load dataset on startup
+def load_dataset():
+    global data
+    try:
+        if os.path.exists(DATASET_PATH):
+            # Read JSONL file
+            data = pd.read_json(DATASET_PATH, lines=True)
+            # Normalize the nested JSON structure
+            data = pd.json_normalize(data['data'])
+            # Convert created_utc to datetime
+            data['created_utc'] = pd.to_datetime(data['created_utc'], unit='s')
+            print(f"Dataset loaded successfully: {len(data)} rows")
+            return True
+        else:
+            print(f"Dataset file not found at {DATASET_PATH}")
+            return False
+    except Exception as e:
+        print(f"Error loading dataset: {str(e)}")
+        return False
+
 @app.route('/')
 def index():
     return render_template('index.html')
-
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    global data
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-    
-    if file and file.filename.endswith('.jsonl'):
-        # Read JSONL file
-        data = pd.read_json(file, lines=True)
-        # Normalize the nested JSON structure
-        data = pd.json_normalize(data['data'])
-        # Convert created_utc to datetime
-        data['created_utc'] = pd.to_datetime(data['created_utc'], unit='s')
-        print("DataFrame columns:", data.columns)  # Debug line
-        return jsonify({'message': 'File uploaded successfully', 'rows': len(data)})
-    return jsonify({'error': 'Invalid file format'}), 400
 
 @app.route('/api/timeseries', methods=['GET'])
 def get_timeseries():
@@ -366,4 +367,12 @@ def get_common_words():
     return jsonify(result)
 
 if __name__ == '__main__':
+    # Load dataset on startup
+    load_success = load_dataset()
+    if not load_success:
+        print("WARNING: Failed to load dataset. Make sure data file exists at ./data/data.jsonl")
+        # Create data directory if it doesn't exist
+        os.makedirs("./data", exist_ok=True)
+        print("Created data directory. Please place your data.jsonl file in the ./data folder.")
+    
     app.run(debug=True) 

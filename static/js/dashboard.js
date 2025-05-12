@@ -2,70 +2,81 @@
 let activeQuery = '';
 let startDate = '';
 let endDate = '';
+let uploadedData = true;  // Always treat data as preloaded
 
-// File upload handling
-document.getElementById('upload-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fileInput = document.getElementById('file-input');
-    const file = fileInput.files[0];
-    
-    if (!file) {
-        alert('Please select a file');
-        return;
+// Helper to show/hide main loading spinner
+function showLoading(show) {
+    const loadingElement = document.getElementById('loading');
+    if (show) {
+        loadingElement.style.display = 'block';
+    } else {
+        loadingElement.style.display = 'none';
     }
-    
-    showLoading(true);
-    
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    try {
-        const response = await fetch('/upload', {
-            method: 'POST',
-            body: formData
-        });
-        const data = await response.json();
-        if (response.ok) {
-            alert(`File uploaded successfully: ${data.rows} rows loaded`);
-        } else {
-            alert(`Error: ${data.error}`);
-        }
-    } catch (error) {
-        alert('Error uploading file');
-        console.error(error);
-    } finally {
-        showLoading(false);
-    }
-});
+}
 
 // Analysis button click handler
 document.getElementById('analyze-btn').addEventListener('click', async () => {
     const query = document.getElementById('query-input').value;
-    activeQuery = query;
-    startDate = document.getElementById('start-date').value;
-    endDate = document.getElementById('end-date').value;
-    
     if (!query) {
         alert('Please enter a search query');
         return;
     }
+
+    activeQuery = query;
+    startDate = document.getElementById('start-date').value;
+    endDate = document.getElementById('end-date').value;
     
     showLoading(true);
     
     try {
-        // Update all visualizations
-        await Promise.all([
-            updateOverview(query),
-            updateTimeSeries(query),
-            updateContributors(query),
-            updateNetwork(query),
-            updateTopics(query),
-            updateCoordinatedBehavior(),
-            updateWordCloud(query)
-        ]);
+        // Clear all previous visualizations first
+        document.getElementById('network-graph').innerHTML = '';
+        document.getElementById('topics-container').innerHTML = '';
+        document.getElementById('contributors-overview').innerHTML = '';
+        document.getElementById('coordinated-graph').innerHTML = '';
+        document.getElementById('coordinated-groups').innerHTML = '';
+        document.getElementById('word-cloud').innerHTML = '';
+        document.getElementById('timeseries-chart').innerHTML = '';
+        document.getElementById('ai-summary').innerHTML = '';
+        
+        // Update all visualizations with individual error handling
+        const updatePromises = [
+            updateOverview(query).catch(error => {
+                console.error('Error updating overview:', error);
+                document.getElementById('ai-summary').innerHTML = '<p class="text-danger">Error loading overview data</p>';
+            }),
+            updateTimeSeries(query).catch(error => {
+                console.error('Error updating time series:', error);
+                document.getElementById('timeseries-chart').innerHTML = '<p class="text-danger">Error loading time series data</p>';
+            }),
+            updateContributorsOverview(query).catch(error => {
+                console.error('Error updating contributors overview:', error);
+                document.getElementById('contributors-overview').innerHTML = '<p class="text-danger">Error loading contributors data</p>';
+            }),
+            updateNetwork(query).catch(error => {
+                console.error('Error updating network:', error);
+                document.getElementById('network-graph').innerHTML = '<p class="text-danger">Error loading network data</p>';
+            }),
+            updateTopics(query).catch(error => {
+                console.error('Error updating topics:', error);
+                document.getElementById('topics-container').innerHTML = '<p class="text-danger">Error loading topics data</p>';
+            }),
+            updateCoordinatedBehavior().catch(error => {
+                console.error('Error updating coordinated behavior:', error);
+                document.getElementById('coordinated-graph').innerHTML = '<p class="text-danger">Error loading coordinated behavior data</p>';
+                document.getElementById('coordinated-groups').innerHTML = '<p class="text-danger">Error loading coordinated groups data</p>';
+            }),
+            updateWordCloud(query).catch(error => {
+                console.error('Error updating word cloud:', error);
+                document.getElementById('word-cloud').innerHTML = '<p class="text-danger">Error loading word cloud data</p>';
+            })
+        ];
+
+        // Wait for all updates to complete, regardless of success/failure
+        await Promise.allSettled(updatePromises);
     } catch (error) {
-        alert('Error performing analysis');
-        console.error(error);
+        console.error('Error during analysis:', error);
+        alert('Error performing analysis. Please check the console for details.');
     } finally {
         showLoading(false);
     }
@@ -96,16 +107,6 @@ document.getElementById('update-coordinated-btn').addEventListener('click', asyn
     await updateCoordinatedBehavior();
     showLoading(false);
 });
-
-// Helper to show/hide loading spinner
-function showLoading(show) {
-    const loadingElement = document.getElementById('loading');
-    if (show) {
-        loadingElement.style.display = 'block';
-    } else {
-        loadingElement.style.display = 'none';
-    }
-}
 
 // Overview Section - AI Summary and Metrics
 async function updateOverview(query) {
@@ -484,16 +485,40 @@ async function updateContributors(query) {
         .text(`Top Contributors for "${query}"`);
 }
 
-// Network Visualization
+// Network Visualization - Optimized version
 async function updateNetwork(query) {
     const response = await fetch(`/api/network?query=${encodeURIComponent(query)}`);
+    if (!response.ok) {
+        throw new Error(`Network request failed with status: ${response.status}`);
+    }
+    
     const data = await response.json();
+    
+    // Check if we have valid data
+    if (!data.nodes || data.nodes.length === 0) {
+        document.getElementById('network-graph').innerHTML = '<div class="alert alert-info">No network data available for this query.</div>';
+        return;
+    }
     
     // Clear previous chart
     d3.select('#network-graph').html('');
     
     const width = document.getElementById('network-graph').clientWidth;
-    const height = 600;
+    const height = 500; // Reduced height to improve performance
+    
+    // Simplify the data for better performance
+    // Limit the number of nodes for better performance
+    const maxNodes = 100;
+    let nodes = data.nodes;
+    let links = data.links;
+    
+    if (nodes.length > maxNodes) {
+        // Sort nodes by size/posts and take only the top ones
+        nodes = nodes.sort((a, b) => (b.posts || 0) - (a.posts || 0)).slice(0, maxNodes);
+        // Filter links to only include the nodes we kept
+        const nodeIds = new Set(nodes.map(n => n.id));
+        links = links.filter(l => nodeIds.has(l.source) && nodeIds.has(l.target));
+    }
     
     // Define a color scale for node groups (communities)
     const color = d3.scaleOrdinal(d3.schemeCategory10);
@@ -514,63 +539,33 @@ async function updateNetwork(query) {
         .style('font-size', '16px')
         .text(`User Interaction Network for "${query}"`);
     
-    // Define simulation with forces
-    const simulation = d3.forceSimulation(data.nodes)
-        .force('link', d3.forceLink(data.links)
+    // Simplified forces for better performance
+    const simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links)
             .id(d => d.id)
-            .distance(100)
-            .strength(link => Math.min(0.5, link.weight ? link.weight * 0.1 : 0.1)))
-        .force('charge', d3.forceManyBody().strength(-300))
+            .distance(50)) // Reduced distance
+        .force('charge', d3.forceManyBody().strength(-100)) // Reduced strength
         .force('center', d3.forceCenter(width / 2, height / 2))
-        .force('collision', d3.forceCollide().radius(d => (d.size || 10) + 5));
+        .force('collision', d3.forceCollide().radius(d => Math.min((d.size || 5) + 2, 15))); // Cap the radius
     
-    // Create legend for communities
-    const uniqueGroups = [...new Set(data.nodes.map(d => d.group))];
-    
-    const legend = svg.append('g')
-        .attr('transform', `translate(${width - 150}, 50)`);
-    
-    legend.selectAll('.legend-item')
-        .data(uniqueGroups)
-        .enter()
-        .append('g')
-        .attr('class', 'legend-item')
-        .attr('transform', (d, i) => `translate(0, ${i * 20})`)
-        .each(function(d) {
-            d3.select(this)
-                .append('rect')
-                .attr('width', 10)
-                .attr('height', 10)
-                .attr('fill', color(d));
-            
-            d3.select(this)
-                .append('text')
-                .attr('x', 15)
-                .attr('y', 10)
-                .text(`Group ${d}`)
-                .style('font-size', '12px');
-        });
-    
-    // Create links
+    // Create links with simplified styling
     const link = svg.append('g')
         .selectAll('line')
-        .data(data.links)
+        .data(links)
         .enter()
         .append('line')
         .attr('stroke', '#999')
         .attr('stroke-opacity', 0.6)
-        .attr('stroke-width', d => d.weight ? Math.sqrt(d.weight) : 1);
+        .attr('stroke-width', 1);
     
-    // Create nodes
+    // Create nodes with simplified styling
     const node = svg.append('g')
         .selectAll('circle')
-        .data(data.nodes)
+        .data(nodes)
         .enter()
         .append('circle')
-        .attr('r', d => d.size || 10)
+        .attr('r', d => Math.min((d.size || 5), 12)) // Cap the radius
         .attr('fill', d => color(d.group || 0))
-        .attr('stroke', '#fff')
-        .attr('stroke-width', 1.5)
         .call(d3.drag()
             .on('start', dragstarted)
             .on('drag', dragged)
@@ -580,21 +575,25 @@ async function updateNetwork(query) {
     node.append('title')
         .text(d => `${d.id} (${d.posts || 0} posts)`);
     
-    // Add node labels for nodes with more posts
+    // Only label top nodes for better performance
     svg.append('g')
         .selectAll('text')
-        .data(data.nodes.filter(d => d.posts > 3))  // Only label significant nodes
+        .data(nodes.filter((d, i) => i < 15)) // Only label top 15 nodes
         .enter()
         .append('text')
-        .attr('dx', d => d.size + 5)
+        .attr('dx', 8)
         .attr('dy', '.35em')
         .text(d => d.id)
-        .style('font-size', '10px')
-        .style('font-family', 'Arial')
-        .style('pointer-events', 'none');  // Make text not interfere with mouse events
+        .style('font-size', '8px') // Smaller font
+        .style('pointer-events', 'none');
     
-    // Update positions on each tick
+    // Optimize the tick function
+    let ticks = 0;
     simulation.on('tick', () => {
+        ticks++;
+        // Only update every 2 ticks for better performance
+        if (ticks % 2 !== 0) return;
+        
         link
             .attr('x1', d => d.source.x)
             .attr('y1', d => d.source.y)
@@ -602,14 +601,17 @@ async function updateNetwork(query) {
             .attr('y2', d => d.target.y);
         
         node
-            .attr('cx', d => d.x = Math.max(d.size || 10, Math.min(width - (d.size || 10), d.x)))
-            .attr('cy', d => d.y = Math.max(d.size || 10, Math.min(height - (d.size || 10), d.y)));
+            .attr('cx', d => d.x = Math.max(10, Math.min(width - 10, d.x)))
+            .attr('cy', d => d.y = Math.max(10, Math.min(height - 10, d.y)));
         
         // Update label positions
         svg.selectAll('text')
             .attr('x', d => d ? d.x : 0)
             .attr('y', d => d ? d.y : 0);
     });
+    
+    // Stop the simulation after a certain number of ticks for better performance
+    setTimeout(() => simulation.stop(), 3000);
     
     // Drag functions
     function dragstarted(event) {
@@ -628,13 +630,31 @@ async function updateNetwork(query) {
         event.subject.fx = null;
         event.subject.fy = null;
     }
+    
+    // Add a note about performance optimization
+    svg.append('text')
+        .attr('x', 10)
+        .attr('y', height - 10)
+        .style('font-size', '10px')
+        .style('fill', '#666')
+        .text(`Showing up to ${maxNodes} top users for better performance`);
 }
 
-// Topic Analysis Visualization
+// Topic Analysis Visualization - Optimized version
 async function updateTopics(query) {
     const topicsCount = document.getElementById('topics-count').value;
     const response = await fetch(`/api/topics?n_topics=${topicsCount}&query=${encodeURIComponent(query)}`);
+    if (!response.ok) {
+        throw new Error(`Topics request failed with status: ${response.status}`);
+    }
+    
     const data = await response.json();
+    
+    // Check if we have valid data
+    if (!data || data.length === 0) {
+        document.getElementById('topics-container').innerHTML = '<div class="alert alert-info">No topic data available for this query.</div>';
+        return;
+    }
     
     // Clear previous visualization
     d3.select('#topics-container').html('');
@@ -644,7 +664,7 @@ async function updateTopics(query) {
     // Color scale for topics
     const color = d3.scaleOrdinal(d3.schemeCategory10);
     
-    // Create a div for each topic
+    // Create a simpler div for each topic
     data.forEach((topic, i) => {
         const topicContainer = container.append('div')
             .attr('class', 'card mb-3')
@@ -657,25 +677,22 @@ async function updateTopics(query) {
         const cardBody = topicContainer.append('div')
             .attr('class', 'card-body');
         
-        // Create word cloud for this topic
-        const cloudContainer = cardBody.append('div')
-            .attr('id', `topic-cloud-${i}`)
-            .style('height', '150px')
-            .style('width', '100%');
-        
-        // Scale for word size within this topic
-        const maxSize = 24;  // Max font size
-        
-        // Create a simple horizontal bar for each word
+        // Create a simple horizontal display for each word
         const words = topic.top_words;
         const wordsDiv = cardBody.append('div')
             .attr('class', 'mt-3');
         
-        words.forEach((word, j) => {
+        // Only display the top 10 words for better performance
+        const displayWords = words.slice(0, 10);
+        const maxSize = 24;  // Max font size
+        
+        displayWords.forEach((word, j) => {
             wordsDiv.append('span')
-                .style('font-size', `${Math.max(14, maxSize - j*2)}px`)
+                .style('font-size', `${Math.max(14, maxSize - j*1.5)}px`)
                 .style('color', color(i))
                 .style('margin-right', '10px')
+                .style('display', 'inline-block')
+                .style('margin-bottom', '5px')
                 .text(word);
         });
     });
