@@ -8,97 +8,412 @@
     <script src="https://cdn.jsdelivr.net/npm/d3-cloud@1.2.5/build/d3.layout.cloud.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <!-- Add Lora font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
     <style>
+        :root {
+            /* Modern color palette */
+            --primary-color: #4a6fa5;
+            --primary-light: #d5e3f6;
+            --primary-dark: #2c4674;
+            --secondary-color: #6b9080;
+            --secondary-light: #e3f0ea;
+            --accent-color: #ee6c4d;
+            --accent-light: #f9e5dc;
+            --dark-color: #293241;
+            --light-color: #f8f9fa;
+            --neutral-color: #e0e0e0;
+            --text-primary: #333333;
+            --text-secondary: #6c757d;
+            --text-light: #ffffff;
+            --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --hover-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+            --border-radius: 10px;
+        }
+        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f8f9fa;
+            font-family: 'Lora', serif;
+            background-color: var(--light-color);
+            color: var(--text-primary);
+            line-height: 1.6;
         }
+        
+        /* Header Styling */
         .dashboard-header {
-            background-color: #343a40;
-            color: white;
-            padding: 20px 0;
-            margin-bottom: 20px;
-            border-bottom: 4px solid #0d6efd;
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-color) 100%);
+            color: var(--text-light);
+            padding: 28px 0;
+            margin-bottom: 25px;
+            border-bottom: none;
+            box-shadow: var(--card-shadow);
         }
+        
+        .dashboard-header h1 {
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
+        }
+        
+        .dashboard-header .lead {
+            font-weight: 400;
+            opacity: 0.9;
+        }
+        
+        /* Container Styling */
         .chart-container {
             margin: 20px 0;
-            padding: 20px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
+            padding: 24px;
+            border: none;
+            border-radius: var(--border-radius);
             background-color: white;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            box-shadow: var(--card-shadow);
+            transition: all 0.3s ease;
         }
+        
+        .chart-container:hover {
+            box-shadow: var(--hover-shadow);
+        }
+        
+        .chart-container h3 {
+            color: var(--primary-dark);
+            font-weight: 600;
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--neutral-color);
+        }
+        
+        .chart-container h3 i {
+            margin-right: 8px;
+            color: var(--primary-color);
+        }
+        
+        /* Controls Section */
         .controls {
-            margin: 20px 0;
-            padding: 20px;
+            margin: 25px 0;
+            padding: 24px;
             background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            border-radius: var(--border-radius);
+            box-shadow: var(--card-shadow);
         }
+        
+        .controls h3 {
+            color: var(--primary-dark);
+            font-weight: 600;
+            margin-bottom: 18px;
+        }
+        
+        .controls .card {
+            border: 1px solid var(--primary-light);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+        }
+        
+        .controls .form-label {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .controls .form-control {
+            border: 1px solid var(--primary-light);
+            border-radius: 6px;
+            padding: 10px 15px;
+            font-family: 'Lora', serif;
+        }
+        
+        .controls .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(74, 111, 165, 0.25);
+        }
+        
+        /* Button Styling */
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            font-family: 'Lora', serif;
+        }
+        
+        .btn-success {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+        
+        .btn-success:hover {
+            background-color: var(--secondary-color);
+            filter: brightness(1.1);
+            box-shadow: 0 4px 8px rgba(107, 144, 128, 0.3);
+        }
+        
+        .btn-outline-primary {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-outline-primary:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        /* Graph Containers */
         #network-graph, #coordinated-graph {
             width: 100%;
             height: 600px;
-            border: 1px solid #eee;
-            border-radius: 4px;
+            border: 1px solid var(--neutral-color);
+            border-radius: 8px;
+            background-color: white;
+            overflow: hidden;
         }
+        
+        /* Insight Card */
         .insight-card {
-            background-color: #e9f7fe;
-            border-left: 4px solid #0d6efd;
-            padding: 15px;
+            background-color: var(--primary-light);
+            border-left: 4px solid var(--primary-color);
+            padding: 20px;
             margin-bottom: 20px;
-            border-radius: 4px;
+            border-radius: 8px;
+            line-height: 1.7;
         }
+        
+        /* Word Cloud */
         .word-cloud {
             width: 100%;
             height: 300px;
+            padding: 10px;
+            background-color: white;
+            border-radius: 8px;
         }
+        
+        /* Tab Navigation */
         .nav-tabs {
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            border-bottom: 2px solid var(--neutral-color);
         }
+        
         .nav-tabs .nav-link {
-            color: #495057;
+            color: var(--text-secondary);
+            font-weight: 500;
+            padding: 12px 20px;
+            border: none;
+            position: relative;
+            margin-right: 5px;
+            transition: all 0.3s ease;
         }
+        
+        .nav-tabs .nav-link:hover {
+            color: var(--primary-color);
+        }
+        
         .nav-tabs .nav-link.active {
-            font-weight: bold;
-            border-bottom: 2px solid #0d6efd;
+            font-weight: 600;
+            color: var(--primary-color);
+            background-color: transparent;
+            border: none;
         }
+        
+        .nav-tabs .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background-color: var(--primary-color);
+            border-radius: 3px 3px 0 0;
+        }
+        
+        .nav-tabs .nav-link i {
+            margin-right: 8px;
+        }
+        
         .tab-content {
             padding-top: 20px;
         }
+        
+        /* Stat Cards */
         .stat-card {
-            padding: 15px;
+            padding: 20px;
             background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            border-radius: var(--border-radius);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.05);
             margin-bottom: 20px;
             text-align: center;
+            height: 100%;
+            transition: all 0.3s ease;
+            border: 1px solid var(--neutral-color);
         }
+        
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--hover-shadow);
+        }
+        
         .stat-value {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #0d6efd;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 5px;
         }
+        
         .stat-label {
-            color: #6c757d;
+            color: var(--text-secondary);
             font-size: 0.9rem;
+            font-weight: 500;
         }
+        
+        /* Coordinated Group */
         .coordinated-group {
-            margin-bottom: 15px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            border-left: 4px solid #6c757d;
+            margin-bottom: 20px;
+            padding: 18px;
+            background-color: white;
+            border-radius: var(--border-radius);
+            border-left: 4px solid var(--secondary-color);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
         }
+        
+        .coordinated-group:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            transform: translateX(3px);
+        }
+        
+        /* Loading Indicator */
         .loading {
             display: none;
             text-align: center;
-            padding: 20px;
+            padding: 30px;
+            background-color: rgba(255,255,255,0.9);
+            border-radius: var(--border-radius);
+            box-shadow: var(--card-shadow);
+            position: relative;
+            z-index: 10;
         }
-        .upload-loading {
-            display: flex;
-            align-items: center;
-            font-size: 0.9rem;
-            color: #0d6efd;
+        
+        .loading .spinner-border {
+            color: var(--primary-color);
+            width: 3rem;
+            height: 3rem;
+        }
+        
+        /* Form Range Controls */
+        .form-range {
+            height: 8px;
+            border-radius: 4px;
+        }
+        
+        .form-range::-webkit-slider-thumb {
+            background: var(--primary-color);
+        }
+        
+        .form-range::-moz-range-thumb {
+            background: var(--primary-color);
+        }
+        
+        /* Data Story Section */
+        #data-story {
+            border: none;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        #data-story .story-title {
+            color: var(--primary-dark);
+            font-weight: 700;
+        }
+        
+        #data-story .section-title {
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-top: 20px;
+        }
+        
+        #data-story .story-section {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--neutral-color);
+        }
+        
+        /* Badge Styling */
+        .badge {
+            padding: 8px 12px;
+            font-weight: 500;
+            border-radius: 20px;
+            margin-right: 8px;
+        }
+        
+        .badge.bg-primary {
+            background-color: var(--primary-color) !important;
+        }
+        
+        .badge.bg-secondary {
+            background-color: var(--text-secondary) !important;
+        }
+        
+        /* Topic Cards */
+        .topic-card {
+            transition: all 0.3s ease;
+            border-radius: var(--border-radius);
+            border-color: var(--neutral-color);
+        }
+        
+        .topic-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--hover-shadow);
+        }
+        
+        /* Responsive Adjustments */
+        @media (max-width: 768px) {
+            .chart-container {
+                padding: 15px;
+            }
+            
+            .stat-value {
+                font-size: 1.8rem;
+            }
+            
+            .nav-tabs .nav-link {
+                padding: 10px 12px;
+                font-size: 0.9rem;
+            }
+        }
+        
+        /* Alert Styling */
+        .alert {
+            border-radius: var(--border-radius);
+            font-weight: 500;
+        }
+        
+        .alert-info {
+            background-color: var(--primary-light);
+            color: var(--primary-dark);
+            border-color: var(--primary-light);
+        }
+        
+        /* Section Loading Indicator Style */
+        .section-loading {
+            padding: 30px;
+            text-align: center;
+            color: var(--text-secondary);
+            background-color: var(--light-color);
+            border-radius: var(--border-radius);
+            font-style: italic;
+        }
+        
+        .section-loading .spinner-border {
+            margin-right: 10px;
+            color: var(--primary-color);
+        }
+        
+        /* Mini Timeline Styling */
+        .mini-timeline {
+            border-radius: var(--border-radius);
+            overflow: hidden;
+        }
+        
+        .timeline-body {
+            background-color: var(--primary-light) !important;
         }
     </style>
 </head>
@@ -111,7 +426,7 @@
     </div>
 
     <div class="container-fluid">
-        <!-- File Upload -->
+        <!-- Query Settings -->
         <div class="controls">
             <h3><i class="bi bi-search"></i> Query Settings</h3>
             <div class="card">
@@ -121,11 +436,11 @@
                         <input type="text" class="form-control" id="query-input" placeholder="Enter your search query">
                     </div>
                     <div class="row mb-3">
-                        <div class="col">
+                        <div class="col-md-6">
                             <label for="start-date" class="form-label">Start Date</label>
                             <input type="date" class="form-control" id="start-date">
                         </div>
-                        <div class="col">
+                        <div class="col-md-6">
                             <label for="end-date" class="form-label">End Date</label>
                             <input type="date" class="form-control" id="end-date">
                         </div>
@@ -139,10 +454,10 @@
 
         <!-- Loading indicator -->
         <div id="loading" class="loading">
-            <div class="spinner-border text-primary" role="status">
+            <div class="spinner-border" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
-            <p class="mt-2">Analyzing data...</p>
+            <p class="mt-3 fw-bold">Analyzing data...</p>
         </div>
 
         <!-- Analytics Tabs -->
@@ -187,6 +502,16 @@
                                 <p class="text-muted">Enter a search query and analyze data to generate AI insights.</p>
                             </div>
                         </div>
+                        
+                        <!-- Data Story Section -->
+                        <div class="chart-container mt-4">
+                            <h3><i class="bi bi-book"></i> Data Story</h3>
+                            <div id="data-story" class="card">
+                                <div class="card-body">
+                                    <p class="text-muted">Enter a search query and analyze data to generate a comprehensive data story.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <!-- Key Metrics Section -->
@@ -194,7 +519,7 @@
                         <div class="chart-container">
                             <h3><i class="bi bi-speedometer2"></i> Key Metrics</h3>
                             <div id="metrics-container">
-                                <div class="row">
+                                <div class="row g-3">
                                     <div class="col-6">
                                         <div class="stat-card">
                                             <div class="stat-value" id="total-posts">-</div>
@@ -248,7 +573,7 @@
             <div class="tab-pane fade" id="timeseries-panel" role="tabpanel" aria-labelledby="timeseries-tab">
                 <div class="chart-container">
                     <h3><i class="bi bi-graph-up"></i> Time Series Analysis</h3>
-                    <p class="text-muted">Shows post frequency over time for the selected query.</p>
+                    <p class="text-muted mb-4">Shows post frequency over time for the selected query.</p>
                     <div id="timeseries-chart"></div>
                 </div>
             </div>
@@ -257,7 +582,7 @@
             <div class="tab-pane fade" id="network-panel" role="tabpanel" aria-labelledby="network-tab">
                 <div class="chart-container">
                     <h3><i class="bi bi-diagram-3"></i> User Interaction Network</h3>
-                    <p class="text-muted">Visualizes connections between users based on interactions. Larger nodes indicate more posts, and colors represent different communities.</p>
+                    <p class="text-muted mb-4">Visualizes connections between users based on interactions. Larger nodes indicate more posts, and colors represent different communities.</p>
                     <div id="network-graph"></div>
                 </div>
             </div>
@@ -266,13 +591,18 @@
             <div class="tab-pane fade" id="topics-panel" role="tabpanel" aria-labelledby="topics-tab">
                 <div class="chart-container">
                     <h3><i class="bi bi-chat-square-text"></i> Topic Analysis</h3>
-                    <p class="text-muted">Identifies key topics in the content using Latent Dirichlet Allocation (LDA).</p>
-                    <div class="mb-3">
-                        <label for="topics-count" class="form-label">Number of Topics</label>
-                        <input type="range" class="form-range" id="topics-count" min="3" max="10" value="5">
-                        <span id="topics-count-value">5</span>
+                    <p class="text-muted mb-4">Identifies key topics in the content using Latent Dirichlet Allocation (LDA).</p>
+                    <div class="row align-items-end mb-4">
+                        <div class="col-md-8">
+                            <label for="topics-count" class="form-label fw-medium">Number of Topics: <span id="topics-count-value">5</span></label>
+                            <input type="range" class="form-range" id="topics-count" min="3" max="10" value="5">
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <button id="update-topics-btn" class="btn btn-outline-primary">
+                                <i class="bi bi-arrow-repeat"></i> Update Topics
+                            </button>
+                        </div>
                     </div>
-                    <button id="update-topics-btn" class="btn btn-outline-primary mb-3">Update Topics</button>
                     <div id="topics-container"></div>
                 </div>
             </div>
@@ -283,27 +613,39 @@
                     <div class="col-md-6">
                         <div class="chart-container">
                             <h3><i class="bi bi-people"></i> Coordinated Behavior Network</h3>
-                            <p class="text-muted">Shows authors who post similar content within a short time window.</p>
-                            <div class="mb-3">
-                                <label for="time-window" class="form-label">Time Window (seconds)</label>
+                            <p class="text-muted mb-4">Shows authors who post similar content within a short time window.</p>
+                            <div class="mb-4">
+                                <label for="time-window" class="form-label fw-medium">Time Window (seconds): <span id="time-window-value" class="badge bg-light text-dark">3600</span></label>
                                 <input type="range" class="form-range" id="time-window" min="600" max="21600" step="600" value="3600">
-                                <span id="time-window-value">3600</span>
                             </div>
-                            <div class="mb-3">
-                                <label for="similarity-threshold" class="form-label">Similarity Threshold</label>
+                            <div class="mb-4">
+                                <label for="similarity-threshold" class="form-label fw-medium">Similarity Threshold: <span id="similarity-threshold-value" class="badge bg-light text-dark">0.7</span></label>
                                 <input type="range" class="form-range" id="similarity-threshold" min="0.3" max="0.9" step="0.05" value="0.7">
-                                <span id="similarity-threshold-value">0.7</span>
                             </div>
-                            <button id="update-coordinated-btn" class="btn btn-outline-primary mb-3">Update Analysis</button>
+                            <button id="update-coordinated-btn" class="btn btn-outline-primary mb-4">
+                                <i class="bi bi-arrow-repeat"></i> Update Analysis
+                            </button>
                             <div id="coordinated-graph"></div>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="chart-container">
                             <h3><i class="bi bi-list-ul"></i> Coordinated Post Groups</h3>
-                            <div id="coordinated-stats" class="mb-3">
-                                <span class="badge bg-primary">Total Groups: <span id="total-groups">0</span></span>
-                                <span class="badge bg-secondary">Total Authors: <span id="total-authors">0</span></span>
+                            <div id="coordinated-stats" class="mb-4">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="stat-card">
+                                            <div class="stat-value" id="total-groups">0</div>
+                                            <div class="stat-label">Total Groups</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="stat-card">
+                                            <div class="stat-value" id="total-authors">0</div>
+                                            <div class="stat-label">Total Authors</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <div id="coordinated-groups" style="max-height: 500px; overflow-y: auto;"></div>
                         </div>
@@ -313,26 +655,7 @@
         </div>
     </div>
 
-    <footer class="bg-dark text-white mt-5 py-3">
-        <div class="container-fluid text-center">
-            <p class="mb-0">Social Media Analysis Dashboard</p>
-            <p class="small text-muted mb-0">Built for visualizing and analyzing social media trends and behaviors.</p>
-        </div>
-    </footer>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-    <script>
-        // Ensure visualizations are properly displayed when switching tabs
-        document.addEventListener('DOMContentLoaded', function() {
-            const tabLinks = document.querySelectorAll('.nav-link');
-            tabLinks.forEach(tab => {
-                tab.addEventListener('shown.bs.tab', function(event) {
-                    // Trigger resize event to ensure visualizations are properly sized
-                    window.dispatchEvent(new Event('resize'));
-                });
-            });
-        });
-    </script>
 </body>
 </html> 

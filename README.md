@@ -1,69 +1,54 @@
 # Social Media Analysis Dashboard
 
-An interactive dashboard for analyzing social media data using Python (Flask) and vanilla JavaScript (D3.js).
+This dashboard provides advanced analytics for social media data, including time series analysis, network graphs, topic modeling, and AI-powered insights.
+
+## Setup Instructions
+
+1. Clone this repository
+2. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+3. Create a `.env` file in the root directory with your Groq API key:
+   ```
+   GROQ_API_KEY=your_groq_api_key_here
+   ```
+   You can get a Groq API key by signing up at https://console.groq.com/keys
+
+4. Place your dataset in `./data/data.jsonl`
+
+5. Run the application:
+   ```
+   python app.py
+   ```
+
+6. Open your browser and navigate to `http://localhost:5000`
 
 ## Features
 
-- Upload and analyze JSONL files containing social media data
-- Interactive visualizations:
-  - Time series analysis of posts
-  - Top contributing accounts
-  - Network analysis of reposts/shares
-  - Topic modeling using LDA
-- Real-time data filtering and analysis
-- Responsive and modern UI
+- Automatic data loading from `./data/data.jsonl`
+- Time series analysis of post frequency
+- Network analysis of user interactions
+- Topic modeling with temporal evolution
+- Coordinated behavior detection
+- AI-powered insights using Groq LLM API
+- Interactive data story generation
 
-## Prerequisites
+## Customizing the Analysis
 
-- Python 3.8 or higher
-- pip (Python package manager)
+- Enter search queries to filter the dataset
+- Adjust date ranges for temporal analysis
+- Modify parameters for topic modeling and coordinated behavior detection
 
-## Installation
+## API Integration
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd social-media-analysis-dashboard
-```
+This dashboard uses the Groq API to generate AI-powered insights. If no API key is provided, it will fall back to a simpler local model.
 
-2. Create a virtual environment (optional but recommended):
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install the required packages:
-```bash
-pip install -r requirements.txt
-```
-
-## Usage
-
-1. Start the Flask server:
-```bash
-python app.py
-```
-
-2. Open your web browser and navigate to:
-```
-http://localhost:5000
-```
-
-3. Upload a JSONL file containing social media data. The file should have the following structure:
-```json
-{
-    "text": "Post content",
-    "author": "Username",
-    "created_at": "2024-03-20T12:00:00Z",
-    "repost_of": "Original author username"
-}
-```
-
-4. Use the dashboard controls to:
-   - Enter search queries (keywords, hashtags, or URLs)
-   - Select date ranges
-   - Choose analysis metrics
-   - View different visualizations
+To enable AI-powered insights:
+1. Sign up for a Groq account
+2. Generate an API key
+3. Add the key to your `.env` file
+4. Restart the application
 
 ## Project Structure
 
