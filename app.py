@@ -167,21 +167,25 @@ def get_network():
     1. Builds a directed graph where nodes are authors and edges represent interactions
     2. Sizes nodes based on post count
     3. Applies community detection to identify clusters of users
-    4. Formats the graph for D3.js visualization
+    4. Identifies shared keywords, hashtags, and URLs between authors
+    5. Formats the graph for D3.js visualization
     
     Query Parameters:
         query (str): Search term to filter posts
+        network_type (str, optional): Type of network to generate ('interaction', 'content_sharing')
+        content_type (str, optional): For content_sharing network, what to analyze ('keywords', 'hashtags', 'urls', 'all')
+        min_similarity (float, optional): Minimum similarity threshold for content connections (default: 0.2)
     
     Returns:
-        JSON: Object containing nodes and links for network visualization
+        JSON: Object containing nodes and links for network visualization, plus shared content metadata
     """
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
     query = request.args.get('query', '')
-    
-    # Create a directed graph
-    G = nx.DiGraph()
+    network_type = request.args.get('network_type', 'interaction')
+    content_type = request.args.get('content_type', 'all')
+    min_similarity = float(request.args.get('min_similarity', 0.2))
     
     # Filter data
     filtered_data = data[
@@ -189,31 +193,135 @@ def get_network():
         data['title'].str.contains(query, case=False, na=False)
     ]
     
+    if len(filtered_data) == 0:
+        return jsonify({'nodes': [], 'links': []})
+    
+    # Create a directed graph
+    G = nx.DiGraph()
+    
     # Add nodes for all authors
     author_counts = filtered_data['author'].value_counts()
     for author, count in author_counts.items():
         G.add_node(author, size=min(count*3, 30), posts=int(count))
     
-    # Add edges based on interactions (comments)
-    comment_edges = []
-    for idx, row in filtered_data.iterrows():
-        if pd.notna(row.get('parent_id')) and row.get('parent_id', '').startswith('t3_'):
-            parent_post = filtered_data[filtered_data['id'] == row.get('parent_id')[3:]]
-            if not parent_post.empty:
-                parent_author = parent_post.iloc[0]['author']
-                if parent_author != row['author']:  # Don't count self-interactions
-                    comment_edges.append((row['author'], parent_author))
+    if network_type == 'interaction':
+        # Traditional interaction network (unchanged)
+        # Add edges based on interactions (comments)
+        comment_edges = []
+        for idx, row in filtered_data.iterrows():
+            if pd.notna(row.get('parent_id')) and row.get('parent_id', '').startswith('t3_'):
+                parent_post = filtered_data[filtered_data['id'] == row.get('parent_id')[3:]]
+                if not parent_post.empty:
+                    parent_author = parent_post.iloc[0]['author']
+                    if parent_author != row['author']:  # Don't count self-interactions
+                        comment_edges.append((row['author'], parent_author))
+        
+        # Count edge weights
+        edge_weights = {}
+        for source, target in comment_edges:
+            if (source, target) not in edge_weights:
+                edge_weights[(source, target)] = 0
+            edge_weights[(source, target)] += 1
+        
+        # Add weighted edges
+        for (source, target), weight in edge_weights.items():
+            G.add_edge(source, target, weight=weight)
     
-    # Count edge weights
-    edge_weights = {}
-    for source, target in comment_edges:
-        if (source, target) not in edge_weights:
-            edge_weights[(source, target)] = 0
-        edge_weights[(source, target)] += 1
-    
-    # Add weighted edges
-    for (source, target), weight in edge_weights.items():
-        G.add_edge(source, target, weight=weight)
+    else:
+        # Content-based network
+        # Extract shared content between authors
+        import re
+        from collections import defaultdict
+        
+        # Functions to extract different content types
+        def extract_keywords(text):
+            if not isinstance(text, str):
+                return []
+            # Simple keyword extraction - could be improved with NLP
+            words = re.findall(r'\b[a-zA-Z]{4,}\b', text.lower())
+            # Filter out common words
+            common_words = {'about', 'after', 'again', 'also', 'around', 'before', 'being', 'between',
+                           'could', 'every', 'from', 'have', 'here', 'most', 'need', 'other', 'should',
+                           'since', 'there', 'these', 'they', 'this', 'those', 'through', 'using',
+                           'very', 'what', 'when', 'where', 'which', 'while', 'would', 'your'}
+            return [w for w in words if w not in common_words]
+        
+        def extract_hashtags(text):
+            if not isinstance(text, str):
+                return []
+            return re.findall(r'#[a-zA-Z0-9_]+', text.lower())
+        
+        def extract_urls(text):
+            if not isinstance(text, str):
+                return []
+            return re.findall(r'https?://\S+', text.lower())
+        
+        # Extract content for each author
+        author_content = defaultdict(lambda: {'keywords': set(), 'hashtags': set(), 'urls': set()})
+        
+        for _, row in filtered_data.iterrows():
+            # Combine title and selftext
+            full_text = f"{row['title']} {row.get('selftext', '')}"
+            author = row['author']
+            
+            # Extract content based on requested type
+            if content_type in ['all', 'keywords']:
+                author_content[author]['keywords'].update(extract_keywords(full_text))
+            
+            if content_type in ['all', 'hashtags']:
+                author_content[author]['hashtags'].update(extract_hashtags(full_text))
+            
+            if content_type in ['all', 'urls']:
+                author_content[author]['urls'].update(extract_urls(full_text))
+        
+        # Find shared content between authors
+        authors = list(author_content.keys())
+        content_edges = []
+        
+        for i in range(len(authors)):
+            for j in range(i+1, len(authors)):
+                author1 = authors[i]
+                author2 = authors[j]
+                
+                shared_content = {
+                    'keywords': author_content[author1]['keywords'].intersection(author_content[author2]['keywords']),
+                    'hashtags': author_content[author1]['hashtags'].intersection(author_content[author2]['hashtags']),
+                    'urls': author_content[author1]['urls'].intersection(author_content[author2]['urls'])
+                }
+                
+                # Calculate similarity score based on shared content
+                total_shared = len(shared_content['keywords']) + len(shared_content['hashtags']) + len(shared_content['urls'])
+                
+                # Only create edges if there's meaningful shared content
+                if total_shared > 0:
+                    # Calculate similarity score 
+                    author1_total = sum(len(author_content[author1][ct]) for ct in ['keywords', 'hashtags', 'urls'])
+                    author2_total = sum(len(author_content[author2][ct]) for ct in ['keywords', 'hashtags', 'urls'])
+                    
+                    if author1_total > 0 and author2_total > 0:
+                        # Jaccard similarity: intersection / union
+                        similarity = total_shared / (author1_total + author2_total - total_shared)
+                        
+                        if similarity >= min_similarity:
+                            # Create edge with shared content metadata
+                            content_edges.append((
+                                author1, 
+                                author2, 
+                                {
+                                    'weight': total_shared,
+                                    'similarity': similarity,
+                                    'shared_keywords': list(shared_content['keywords'])[:10],  # Limit to top 10
+                                    'shared_hashtags': list(shared_content['hashtags']),
+                                    'shared_urls': list(shared_content['urls']),
+                                    'total_shared': total_shared
+                                }
+                            ))
+        
+        # Add content-based edges to graph
+        for source, target, attrs in content_edges:
+            G.add_edge(source, target, **attrs)
+            # Make the graph undirected for content sharing
+            G.add_edge(target, source, **attrs)
     
     # Find communities using Louvain method
     if len(G.nodes()) > 0:
@@ -221,20 +329,85 @@ def get_network():
             import community as community_louvain
             partition = community_louvain.best_partition(G.to_undirected())
             nx.set_node_attributes(G, partition, 'group')
-        except:
+        except Exception as e:
+            print(f"Community detection error: {str(e)}")
             # Fallback if community detection fails
             for node in G.nodes():
                 G.nodes[node]['group'] = 0
     
-    # Convert to D3.js format
-    nodes = [{'id': node, 'size': G.nodes[node].get('size', 10), 
-              'group': G.nodes[node].get('group', 0),
-              'posts': G.nodes[node].get('posts', 1)} 
-             for node in G.nodes()]
-    links = [{'source': source, 'target': target, 'weight': G.edges[source, target].get('weight', 1)} 
-             for source, target in G.edges()]
+    # Enhance node metadata with content info
+    if network_type != 'interaction':
+        for node in G.nodes():
+            # Add content statistics to nodes
+            if node in author_content:
+                G.nodes[node]['keyword_count'] = len(author_content[node]['keywords'])
+                G.nodes[node]['hashtag_count'] = len(author_content[node]['hashtags'])
+                G.nodes[node]['url_count'] = len(author_content[node]['urls'])
+                
+                # Add top keywords to nodes (limited to 5)
+                G.nodes[node]['top_keywords'] = list(author_content[node]['keywords'])[:5]
+                G.nodes[node]['top_hashtags'] = list(author_content[node]['hashtags'])[:5]
     
-    return jsonify({'nodes': nodes, 'links': links})
+    # Convert to D3.js format
+    nodes = []
+    for node in G.nodes():
+        # Basic node info
+        node_data = {
+            'id': node, 
+            'size': G.nodes[node].get('size', 10),
+            'group': G.nodes[node].get('group', 0),
+            'posts': G.nodes[node].get('posts', 1)
+        }
+        
+        # Add content metadata if available
+        if network_type != 'interaction':
+            node_data.update({
+                'keyword_count': G.nodes[node].get('keyword_count', 0),
+                'hashtag_count': G.nodes[node].get('hashtag_count', 0),
+                'url_count': G.nodes[node].get('url_count', 0),
+                'top_keywords': G.nodes[node].get('top_keywords', []),
+                'top_hashtags': G.nodes[node].get('top_hashtags', [])
+            })
+        
+        nodes.append(node_data)
+    
+    # Convert links with enhanced metadata
+    links = []
+    for source, target in G.edges():
+        link_data = {
+            'source': source, 
+            'target': target,
+            'weight': G.edges[source, target].get('weight', 1)
+        }
+        
+        # Add shared content info if available
+        if network_type != 'interaction':
+            link_data.update({
+                'similarity': G.edges[source, target].get('similarity', 0),
+                'shared_keywords': G.edges[source, target].get('shared_keywords', []),
+                'shared_hashtags': G.edges[source, target].get('shared_hashtags', []),
+                'shared_urls': G.edges[source, target].get('shared_urls', []),
+                'total_shared': G.edges[source, target].get('total_shared', 0)
+            })
+        
+        links.append(link_data)
+    
+    # Calculate network metrics
+    metrics = {
+        'node_count': len(nodes),
+        'edge_count': len(links),
+        'network_type': network_type,
+        'content_type': content_type if network_type != 'interaction' else None,
+        'density': nx.density(G) if len(G.nodes()) > 1 else 0,
+        'avg_degree': sum(dict(G.degree()).values()) / len(G.nodes()) if len(G.nodes()) > 0 else 0
+    }
+    
+    return jsonify({
+        'nodes': nodes, 
+        'links': links,
+        'metrics': metrics,
+        'network_type': network_type
+    })
 
 @app.route('/api/topics', methods=['GET'])
 def get_topics():

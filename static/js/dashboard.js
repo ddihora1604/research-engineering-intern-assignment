@@ -670,7 +670,7 @@ async function updateTimeSeries(query) {
     
     const timeseriesElement = document.getElementById('timeseries-chart');
     const containerWidth = timeseriesElement.clientWidth || timeseriesElement.offsetWidth || 800; // Fallback width
-    const margin = {top: 20, right: 20, bottom: 30, left: 50};
+    const margin = {top: 20, right: 30, bottom: 50, left: 60};
     const width = containerWidth - margin.left - margin.right;
     const height = 400 - margin.top - margin.bottom;
     
@@ -693,13 +693,54 @@ async function updateTimeSeries(query) {
     // Sort data by date
     data.sort((a, b) => a.date - b.date);
     
+    // Calculate moving average (7-day window)
+    const movingAvgWindow = Math.min(7, data.length);
+    const movingAvgData = [];
+    
+    for (let i = 0; i < data.length; i++) {
+        let sum = 0;
+        let count = 0;
+        
+        for (let j = Math.max(0, i - Math.floor(movingAvgWindow/2)); 
+             j <= Math.min(data.length - 1, i + Math.floor(movingAvgWindow/2)); j++) {
+            sum += data[j].count;
+            count++;
+        }
+        
+        movingAvgData.push({
+            date: data[i].date,
+            count: sum / count
+        });
+    }
+    
+    // Find peak points (local maxima) - points with higher values than neighbors
+    const peaks = [];
+    for (let i = 1; i < data.length - 1; i++) {
+        if (data[i].count > data[i-1].count && 
+            data[i].count > data[i+1].count && 
+            data[i].count > d3.mean(data, d => d.count) * 1.5) { // At least 50% above average
+            peaks.push(data[i]);
+        }
+    }
+    // Limit to top 3 peaks
+    peaks.sort((a, b) => b.count - a.count);
+    const topPeaks = peaks.slice(0, 3);
+    
+    // Identify overall trend
+    const firstHalf = data.slice(0, Math.floor(data.length/2));
+    const secondHalf = data.slice(Math.floor(data.length/2));
+    const firstHalfAvg = d3.mean(firstHalf, d => d.count);
+    const secondHalfAvg = d3.mean(secondHalf, d => d.count);
+    const trendPercent = ((secondHalfAvg - firstHalfAvg) / firstHalfAvg * 100).toFixed(1);
+    const trendDirection = secondHalfAvg > firstHalfAvg ? 'increasing' : 'decreasing';
+    
     // Create scales
     const x = d3.scaleTime()
         .domain(d3.extent(data, d => d.date))
         .range([0, width]);
     
     const y = d3.scaleLinear()
-        .domain([0, d3.max(data, d => d.count)])
+        .domain([0, d3.max(data, d => d.count) * 1.1]) // Add space for annotations
         .range([height, 0]);
     
     // Create area gradient
@@ -739,6 +780,52 @@ async function updateTimeSeries(query) {
             .y(d => y(d.count))
         );
     
+    // Add the moving average line
+    svg.append('path')
+        .datum(movingAvgData)
+        .attr('fill', 'none')
+        .attr('stroke', '#dc3545')
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', '5,5')
+        .attr('d', d3.line()
+            .x(d => x(d.date))
+            .y(d => y(d.count))
+        );
+    
+    // Add trend line
+    if (data.length > 3) {
+        // Simple linear regression for trend line
+        const xValues = data.map((d, i) => i);
+        const yValues = data.map(d => d.count);
+        
+        // Calculate linear regression (y = mx + b)
+        const n = xValues.length;
+        const sumX = xValues.reduce((a, b) => a + b, 0);
+        const sumY = yValues.reduce((a, b) => a + b, 0);
+        const sumXY = xValues.reduce((a, b, i) => a + b * yValues[i], 0);
+        const sumXX = xValues.reduce((a, b) => a + b * b, 0);
+        
+        const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+        const intercept = (sumY - slope * sumX) / n;
+        
+        // Create trend line
+        const trendData = [
+            { x: xValues[0], y: slope * xValues[0] + intercept },
+            { x: xValues[xValues.length - 1], y: slope * xValues[xValues.length - 1] + intercept }
+        ];
+        
+        // Draw trend line
+        svg.append('line')
+            .attr('x1', x(data[0].date))
+            .attr('y1', y(trendData[0].y))
+            .attr('x2', x(data[data.length - 1].date))
+            .attr('y2', y(trendData[1].y))
+            .attr('stroke', '#20c997')
+            .attr('stroke-width', 2)
+            .attr('stroke-dasharray', '10,5')
+            .attr('opacity', 0.7);
+    }
+    
     // Add data points
     svg.selectAll('.dot')
         .data(data)
@@ -751,10 +838,43 @@ async function updateTimeSeries(query) {
         .append('title')
         .text(d => `Date: ${d.date.toLocaleDateString()}\nPosts: ${d.count}`);
     
+    // Highlight peak points
+    svg.selectAll('.peak')
+        .data(topPeaks)
+        .enter().append('circle')
+        .attr('class', 'peak')
+        .attr('cx', d => x(d.date))
+        .attr('cy', d => y(d.count))
+        .attr('r', 8)
+        .attr('fill', '#dc3545')
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 2)
+        .append('title')
+        .text(d => `Peak: ${d.date.toLocaleDateString()}\nPosts: ${d.count}`);
+    
+    // Add peak annotations
+    topPeaks.forEach((peak, i) => {
+        // Only add text annotations for the top peak to avoid clutter
+        if (i === 0) {
+            svg.append('text')
+                .attr('x', x(peak.date))
+                .attr('y', y(peak.count) - 15)
+                .attr('text-anchor', 'middle')
+                .style('font-size', '12px')
+                .style('font-weight', 'bold')
+                .text(`Peak: ${peak.count} posts`);
+        }
+    });
+    
     // Add X axis
     svg.append('g')
         .attr('transform', `translate(0,${height})`)
-        .call(d3.axisBottom(x));
+        .call(d3.axisBottom(x).ticks(Math.min(data.length, 10)))
+        .selectAll('text')
+        .style('text-anchor', 'end')
+        .attr('dx', '-.8em')
+        .attr('dy', '.15em')
+        .attr('transform', 'rotate(-45)');
     
     // Add Y axis
     svg.append('g')
@@ -765,8 +885,68 @@ async function updateTimeSeries(query) {
         .attr('x', width / 2)
         .attr('y', -margin.top / 2)
         .attr('text-anchor', 'middle')
-        .style('font-size', '14px')
+        .style('font-size', '16px')
+        .style('font-weight', 'bold')
         .text(`Post Frequency for "${query}"`);
+    
+    // Add trend indicator
+    const trendColor = trendDirection === 'increasing' ? '#20c997' : '#dc3545';
+    svg.append('text')
+        .attr('x', width - 10)
+        .attr('y', 20)
+        .attr('text-anchor', 'end')
+        .style('font-size', '12px')
+        .style('fill', trendColor)
+        .text(`Trend: ${trendDirection} (${trendPercent}%)`);
+    
+    // Add legend
+    const legend = svg.append('g')
+        .attr('transform', `translate(${width - 180}, ${height + 30})`);
+    
+    // Data points
+    legend.append('circle')
+        .attr('cx', 10)
+        .attr('cy', 0)
+        .attr('r', 4)
+        .attr('fill', '#0d6efd');
+    
+    legend.append('text')
+        .attr('x', 20)
+        .attr('y', 4)
+        .style('font-size', '12px')
+        .text('Daily posts');
+    
+    // Moving average
+    legend.append('line')
+        .attr('x1', 0)
+        .attr('y1', 20)
+        .attr('x2', 20)
+        .attr('y2', 20)
+        .attr('stroke', '#dc3545')
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', '5,5');
+    
+    legend.append('text')
+        .attr('x', 25)
+        .attr('y', 24)
+        .style('font-size', '12px')
+        .text('7-day average');
+    
+    // Trend line
+    legend.append('line')
+        .attr('x1', 0)
+        .attr('y1', 40)
+        .attr('x2', 20)
+        .attr('y2', 40)
+        .attr('stroke', '#20c997')
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', '10,5');
+    
+    legend.append('text')
+        .attr('x', 25)
+        .attr('y', 44)
+        .style('font-size', '12px')
+        .text('Trend line');
     
     // Add Y axis label
     svg.append('text')
@@ -777,8 +957,25 @@ async function updateTimeSeries(query) {
         .style('text-anchor', 'middle')
         .text('Number of Posts');
     
+    // Add X axis label
+    svg.append('text')
+        .attr('x', width / 2)
+        .attr('y', height + 40)
+        .style('text-anchor', 'middle')
+        .text('Date');
+    
     // Force a redraw if needed (helps with rendering issues)
     setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+    
+    // Store time series data and peaks in global variable for later use
+    window.timeSeriesData = {
+        raw: data,
+        peaks: topPeaks,
+        trend: {
+            direction: trendDirection,
+            percent: trendPercent
+        }
+    };
 }
 
 // Top Contributors Visualization - Full Page
@@ -878,7 +1075,19 @@ async function updateContributors(query) {
 
 // Network Visualization - Optimized version
 async function updateNetwork(query) {
-    const response = await fetch(`/api/network?query=${encodeURIComponent(query)}`);
+    // Show loading state
+    document.getElementById('network-graph').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading network analysis...</div>';
+    
+    // Get active network type from radio buttons
+    const networkType = document.querySelector('input[name="network-type"]:checked')?.value || 'interaction';
+    const contentType = document.querySelector('input[name="content-type"]:checked')?.value || 'all';
+    const minSimilarity = document.getElementById('min-similarity-slider')?.value || 0.2;
+    
+    // Build URL with parameters
+    let url = `/api/network?query=${encodeURIComponent(query)}`;
+    url += `&network_type=${networkType}&content_type=${contentType}&min_similarity=${minSimilarity}`;
+    
+    const response = await fetch(url);
     if (!response.ok) {
         throw new Error(`Network request failed with status: ${response.status}`);
     }
@@ -889,6 +1098,38 @@ async function updateNetwork(query) {
     if (!data.nodes || data.nodes.length === 0) {
         document.getElementById('network-graph').innerHTML = '<div class="alert alert-info">No network data available for this query.</div>';
         return;
+    }
+    
+    // Update network metrics display
+    if (data.metrics) {
+        document.getElementById('network-metrics').innerHTML = `
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-value">${data.metrics.node_count}</div>
+                        <div class="stat-label">Users</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-value">${data.metrics.edge_count}</div>
+                        <div class="stat-label">Connections</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-value">${data.metrics.avg_degree.toFixed(2)}</div>
+                        <div class="stat-label">Avg. Connections</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-value">${(data.metrics.density * 100).toFixed(1)}%</div>
+                        <div class="stat-label">Network Density</div>
+                    </div>
+                </div>
+            </div>
+        `;
     }
     
     // Clear previous chart
@@ -931,18 +1172,22 @@ async function updateNetwork(query) {
         .attr('transform', `translate(0,0)`);
     
     // Add a title
+    const networkTitle = networkType === 'interaction' 
+        ? `User Interaction Network for "${query}"`
+        : `Content Sharing Network for "${query}"`;
+    
     svg.append('text')
         .attr('x', width / 2)
         .attr('y', 20)
         .attr('text-anchor', 'middle')
         .style('font-size', '16px')
-        .text(`User Interaction Network for "${query}"`);
+        .text(networkTitle);
     
     // PERFORMANCE OPTIMIZATION: Simplified forces and reduced iterations
     const simulation = d3.forceSimulation(nodes)
         .force('link', d3.forceLink(links)
             .id(d => d.id)
-            .distance(75)) // Increased distance for less crowding
+            .distance(d => networkType === 'interaction' ? 75 : (100 / (d.similarity || 0.2)))) // Adjust distance based on similarity for content networks
         .force('charge', d3.forceManyBody().strength(-80)) // Reduced strength
         .force('center', d3.forceCenter(width / 2, height / 2))
         .force('collision', d3.forceCollide().radius(d => Math.min((d.size || 5) + 2, 15))) // Cap the radius
@@ -969,17 +1214,29 @@ async function updateNetwork(query) {
             // Draw title
             context.font = '16px sans-serif';
             context.textAlign = 'center';
-            context.fillText(`User Interaction Network for "${query}"`, width/2, 20);
+            context.fillText(networkTitle, width/2, 20);
             
             // Draw links
             context.strokeStyle = '#999';
             context.lineWidth = 1;
             context.globalAlpha = 0.6;
             links.forEach(link => {
+                // For content network, adjust line thickness based on similarity/shared content
+                if (networkType !== 'interaction' && link.similarity) {
+                    context.lineWidth = Math.max(1, Math.min(5, link.similarity * 5));
+                    // Color links based on similarity
+                    const hue = Math.min(120, Math.round(link.similarity * 120)); // 0-120 range (red to green)
+                    context.strokeStyle = `hsl(${hue}, 70%, 50%)`;
+                }
+                
                 context.beginPath();
                 context.moveTo(link.source.x, link.source.y);
                 context.lineTo(link.target.x, link.target.y);
                 context.stroke();
+                
+                // Reset for next link
+                context.lineWidth = 1;
+                context.strokeStyle = '#999';
             });
             
             // Draw nodes
@@ -993,7 +1250,15 @@ async function updateNetwork(query) {
                     0, 
                     2 * Math.PI
                 );
-                context.fillStyle = color(node.group || 0);
+                
+                // For content network, adjust node coloring
+                if (networkType !== 'interaction') {
+                    const nodeColor = color(node.group || 0);
+                    context.fillStyle = nodeColor;
+                } else {
+                    context.fillStyle = color(node.group || 0);
+                }
+                
                 context.fill();
                 context.strokeStyle = '#fff';
                 context.stroke();
@@ -1027,7 +1292,10 @@ async function updateNetwork(query) {
             drawNetwork();
         });
         
-        // Add canvas interaction for node dragging
+        // Variables to track clicked node for showing details
+        let selectedNode = null;
+        
+        // Add canvas interaction for node dragging and clicking
         d3.select(canvas).call(d3.drag()
             .container(canvas)
             .subject(() => {
@@ -1055,19 +1323,112 @@ async function updateNetwork(query) {
             .on('start', dragstarted)
             .on('drag', dragged)
             .on('end', dragended));
+        
+        // Add click handler to show node details
+        d3.select(canvas).on('click', function() {
+            const coords = d3.mouse(this);
+            const x = coords[0];
+            const y = coords[1];
+            
+            // Find the closest node
+            let closest = null;
+            let closestDistance = Infinity;
+            
+            nodes.forEach(node => {
+                const dx = node.x - x;
+                const dy = node.y - y;
+                const distance = dx * dx + dy * dy;
+                if (distance < closestDistance) {
+                    closest = node;
+                    closestDistance = distance;
+                }
+            });
+            
+            // Only select node if it's close enough (within radius)
+            if (closestDistance < 200) {
+                selectedNode = closest;
+                showNodeDetails(selectedNode);
+                
+                // Highlight connected nodes by redrawing
+                drawNetwork();
+            } else {
+                // Clear selection if clicking empty space
+                selectedNode = null;
+                hideNodeDetails();
+            }
+        });
+        
     } else {
         // For smaller networks, use SVG as before
-        // Create links with simplified styling
+        // Create links with enhanced styling
         const link = svg.append('g')
             .selectAll('line')
             .data(links)
             .enter()
             .append('line')
-            .attr('stroke', '#999')
+            .attr('stroke', d => {
+                // For content network, color links based on similarity
+                if (networkType !== 'interaction' && d.similarity) {
+                    const hue = Math.min(120, Math.round(d.similarity * 120)); // 0-120 range (red to green)
+                    return `hsl(${hue}, 70%, 50%)`;
+                }
+                return '#999';
+            })
             .attr('stroke-opacity', 0.6)
-            .attr('stroke-width', 1);
+            .attr('stroke-width', d => {
+                // For content network, adjust thickness based on similarity
+                if (networkType !== 'interaction' && d.similarity) {
+                    return Math.max(1, Math.min(5, d.similarity * 5));
+                }
+                return 1;
+            })
+            .on('mouseover', function(event, d) {
+                // Show tooltip with shared content info for content networks
+                if (networkType !== 'interaction' && d.shared_keywords) {
+                    d3.select(this)
+                        .attr('stroke-opacity', 1)
+                        .attr('stroke-width', d => Math.max(2, Math.min(6, (d.similarity || 0.2) * 6)));
+                    
+                    const keywordsText = d.shared_keywords.length > 0 
+                        ? `<strong>Shared Keywords:</strong> ${d.shared_keywords.join(', ')}<br>` 
+                        : '';
+                    
+                    const hashtagsText = d.shared_hashtags.length > 0 
+                        ? `<strong>Shared Hashtags:</strong> ${d.shared_hashtags.join(', ')}<br>` 
+                        : '';
+                    
+                    const urlsText = d.shared_urls.length > 0 
+                        ? `<strong>Shared URLs:</strong> ${d.shared_urls.slice(0, 2).join(', ')}${d.shared_urls.length > 2 ? '...' : ''}<br>` 
+                        : '';
+                    
+                    const tooltipContent = `
+                        <div class="network-tooltip">
+                            <strong>${d.source.id} ↔ ${d.target.id}</strong><br>
+                            <strong>Similarity:</strong> ${(d.similarity * 100).toFixed(1)}%<br>
+                            ${keywordsText}
+                            ${hashtagsText}
+                            ${urlsText}
+                            <strong>Total Shared Items:</strong> ${d.total_shared}
+                        </div>
+                    `;
+                    
+                    showTooltip(tooltipContent, event.pageX, event.pageY);
+                }
+            })
+            .on('mouseout', function() {
+                d3.select(this)
+                    .attr('stroke-opacity', 0.6)
+                    .attr('stroke-width', d => {
+                        if (networkType !== 'interaction' && d.similarity) {
+                            return Math.max(1, Math.min(5, d.similarity * 5));
+                        }
+                        return 1;
+                    });
+                
+                hideTooltip();
+            });
         
-        // Create nodes with simplified styling
+        // Create nodes with enhanced styling
         const node = svg.append('g')
             .selectAll('circle')
             .data(nodes)
@@ -1075,33 +1436,90 @@ async function updateNetwork(query) {
             .append('circle')
             .attr('r', d => Math.min((d.size || 5), 12)) // Cap the radius
             .attr('fill', d => color(d.group || 0))
-            .call(d3.drag()
-                .on('start', dragstarted)
-                .on('drag', dragged)
-                .on('end', dragended));
+            .on('mouseover', function(event, d) {
+                // Highlight node on hover
+                d3.select(this)
+                    .attr('stroke', '#000')
+                    .attr('stroke-width', 2);
+                
+                // Show tooltip with node details
+                let tooltipContent = `
+                    <div class="network-tooltip">
+                        <strong>${d.id}</strong><br>
+                        <strong>Posts:</strong> ${d.posts}<br>
+                `;
+                
+                // Add content metadata for content networks
+                if (networkType !== 'interaction') {
+                    const keywordsText = d.top_keywords && d.top_keywords.length > 0 
+                        ? `<strong>Top Keywords:</strong> ${d.top_keywords.join(', ')}<br>` 
+                        : '';
+                    
+                    const hashtagsText = d.top_hashtags && d.top_hashtags.length > 0 
+                        ? `<strong>Top Hashtags:</strong> ${d.top_hashtags.join(', ')}<br>` 
+                        : '';
+                    
+                    tooltipContent += `
+                        ${keywordsText}
+                        ${hashtagsText}
+                        <strong>Keywords:</strong> ${d.keyword_count || 0}<br>
+                        <strong>Hashtags:</strong> ${d.hashtag_count || 0}<br>
+                        <strong>URLs:</strong> ${d.url_count || 0}
+                    `;
+                }
+                
+                tooltipContent += `</div>`;
+                
+                showTooltip(tooltipContent, event.pageX, event.pageY);
+            })
+            .on('mouseout', function() {
+                d3.select(this)
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', 1);
+                hideTooltip();
+            })
+            .on('click', function(event, d) {
+                showNodeDetails(d);
+                
+                // Highlight connected links and nodes
+                link.attr('stroke-opacity', l => 
+                    (l.source.id === d.id || l.target.id === d.id) ? 1 : 0.2
+                );
+                
+                node.attr('opacity', n => 
+                    (n.id === d.id || links.some(l => 
+                        (l.source.id === d.id && l.target.id === n.id) || 
+                        (l.target.id === d.id && l.source.id === n.id)
+                    )) ? 1 : 0.3
+                );
+            });
         
-        // Add tooltips
-        node.append('title')
-            .text(d => `${d.id} (${d.posts || 0} posts)`);
-        
-        // PERFORMANCE OPTIMIZATION: Only label a few top nodes
+        // Add node labels for top nodes
         svg.append('g')
             .selectAll('text')
-            .data(nodes.filter((d, i) => i < 10)) // Only label top 10 nodes
+            .data(nodes.slice(0, 10)) // Only label top 10 nodes
             .enter()
             .append('text')
-            .attr('dx', 8)
-            .attr('dy', '.35em')
+            .attr('x', d => d.x + 8)
+            .attr('y', d => d.y + 3)
             .text(d => d.id)
-            .style('font-size', '8px') // Smaller font
-            .style('pointer-events', 'none');
+            .attr('font-size', '8px')
+            .attr('fill', '#333');
+            
+        // Add double-click handler to reset highlight
+        svg.on('dblclick', function() {
+            hideNodeDetails();
+            link.attr('stroke-opacity', 0.6);
+            node.attr('opacity', 1);
+        });
         
-        // PERFORMANCE OPTIMIZATION: Optimize the tick function - render less frequently
-        let ticks = 0;
+        // Update positions on tick
         simulation.on('tick', () => {
-            ticks++;
-            // Only update every 3 ticks for better performance
-            if (ticks % 3 !== 0) return;
+            // Constrain nodes to view
+            nodes.forEach(node => {
+                node.x = Math.max(10, Math.min(width - 10, node.x));
+                node.y = Math.max(10, Math.min(height - 10, node.y));
+            });
             
             link
                 .attr('x1', d => d.source.x)
@@ -1110,29 +1528,195 @@ async function updateNetwork(query) {
                 .attr('y2', d => d.target.y);
             
             node
-                .attr('cx', d => d.x = Math.max(10, Math.min(width - 10, d.x)))
-                .attr('cy', d => d.y = Math.max(10, Math.min(height - 10, d.y)));
+                .attr('cx', d => d.x)
+                .attr('cy', d => d.y);
             
             // Update label positions
             svg.selectAll('text')
-                .attr('x', d => d ? d.x : 0)
-                .attr('y', d => d ? d.y : 0);
+                .attr('x', d => d.x + 8)
+                .attr('y', d => d.y + 3);
         });
-        
-        // Add a note about performance optimization
-        svg.append('text')
-            .attr('x', 10)
-            .attr('y', height - 10)
-            .style('font-size', '10px')
-            .style('fill', '#666')
-            .text(`Showing ${nodes.length} of ${data.nodes.length} nodes for better performance`);
     }
     
-    // PERFORMANCE OPTIMIZATION: Stop the simulation after fewer iterations
-    // Stop the simulation after a certain number of ticks for better performance
-    setTimeout(() => simulation.stop(), 2000);
+    // Tooltip functions
+    function showTooltip(html, x, y) {
+        const tooltip = d3.select('body')
+            .append('div')
+            .attr('class', 'network-tooltip-container')
+            .style('position', 'absolute')
+            .style('background', 'white')
+            .style('padding', '10px')
+            .style('border-radius', '5px')
+            .style('box-shadow', '0 0 10px rgba(0,0,0,0.2)')
+            .style('pointer-events', 'none')
+            .style('z-index', 1000)
+            .style('max-width', '300px')
+            .style('left', `${x + 10}px`)
+            .style('top', `${y - 10}px`)
+            .html(html);
+    }
     
-    // Drag functions
+    function hideTooltip() {
+        d3.select('.network-tooltip-container').remove();
+    }
+    
+    // Node details panel functions
+    function showNodeDetails(node) {
+        // Select or create the details panel
+        let detailsPanel = d3.select('#network-details-panel');
+        
+        if (detailsPanel.empty()) {
+            detailsPanel = d3.select('#network-graph-container')
+                .append('div')
+                .attr('id', 'network-details-panel')
+                .style('position', 'absolute')
+                .style('right', '20px')
+                .style('top', '70px')
+                .style('width', '300px')
+                .style('background', 'white')
+                .style('border-radius', '8px')
+                .style('box-shadow', '0 0 15px rgba(0,0,0,0.1)')
+                .style('padding', '15px')
+                .style('z-index', 10);
+        }
+        
+        // Generate connected nodes info
+        const connectedNodes = [];
+        links.forEach(link => {
+            if (link.source.id === node.id) {
+                connectedNodes.push({
+                    id: link.target.id,
+                    connection: networkType === 'interaction' ? 'Comment interaction' : 'Content similarity',
+                    details: link.shared_keywords || []
+                });
+            } else if (link.target.id === node.id) {
+                connectedNodes.push({
+                    id: link.source.id,
+                    connection: networkType === 'interaction' ? 'Comment interaction' : 'Content similarity',
+                    details: link.shared_keywords || []
+                });
+            }
+        });
+        
+        // Create HTML content
+        let htmlContent = `
+            <div class="details-header">
+                <h5>${node.id}</h5>
+                <button id="close-details" class="btn-close" aria-label="Close"></button>
+            </div>
+            <div class="details-content">
+                <p><strong>Posts:</strong> ${node.posts}</p>
+        `;
+        
+        // Add content-specific details for content networks
+        if (networkType !== 'interaction') {
+            htmlContent += `
+                <p><strong>Keywords:</strong> ${node.keyword_count || 0}</p>
+                <p><strong>Hashtags:</strong> ${node.hashtag_count || 0}</p>
+                <p><strong>URLs:</strong> ${node.url_count || 0}</p>
+            `;
+            
+            // Add top keywords section
+            if (node.top_keywords && node.top_keywords.length > 0) {
+                htmlContent += `
+                    <div class="mt-3">
+                        <strong>Top Keywords:</strong>
+                        <div class="keyword-tags">
+                            ${node.top_keywords.map(kw => `<span class="badge bg-light text-dark">${kw}</span>`).join(' ')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Add top hashtags section
+            if (node.top_hashtags && node.top_hashtags.length > 0) {
+                htmlContent += `
+                    <div class="mt-3">
+                        <strong>Top Hashtags:</strong>
+                        <div class="hashtag-tags">
+                            ${node.top_hashtags.map(ht => `<span class="badge bg-info text-dark">${ht}</span>`).join(' ')}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        // Add connected nodes section
+        if (connectedNodes.length > 0) {
+            htmlContent += `
+                <div class="mt-3">
+                    <strong>Connected to ${connectedNodes.length} users:</strong>
+                    <ul class="connected-list">
+            `;
+            
+            // Sort connected nodes by most similar first for content networks
+            if (networkType !== 'interaction') {
+                connectedNodes.sort((a, b) => b.details.length - a.details.length);
+            }
+            
+            // Show up to 10 connections
+            connectedNodes.slice(0, 10).forEach(conn => {
+                if (networkType === 'interaction') {
+                    htmlContent += `<li>${conn.id}</li>`;
+                } else {
+                    // Find the link with similarity info
+                    const connectionLink = links.find(l => 
+                        (l.source.id === node.id && l.target.id === conn.id) || 
+                        (l.target.id === node.id && l.source.id === conn.id)
+                    );
+                    
+                    const similarityText = connectionLink && connectionLink.similarity 
+                        ? `(${(connectionLink.similarity * 100).toFixed(1)}% similar)` 
+                        : '';
+                    
+                    const keywordsText = connectionLink && connectionLink.shared_keywords && connectionLink.shared_keywords.length > 0
+                        ? `<small>Keywords: ${connectionLink.shared_keywords.slice(0, 3).join(', ')}${connectionLink.shared_keywords.length > 3 ? '...' : ''}</small>`
+                        : '';
+                    
+                    htmlContent += `
+                        <li>
+                            <strong>${conn.id}</strong> ${similarityText}
+                            <div>${keywordsText}</div>
+                        </li>
+                    `;
+                }
+            });
+            
+            // Add indicator if there are more connections
+            if (connectedNodes.length > 10) {
+                htmlContent += `<li class="text-muted">...and ${connectedNodes.length - 10} more</li>`;
+            }
+            
+            htmlContent += `
+                    </ul>
+                </div>
+            `;
+        }
+        
+        htmlContent += `</div>`;
+        
+        // Set the content
+        detailsPanel.html(htmlContent);
+        
+        // Add event handler for close button
+        detailsPanel.select('#close-details').on('click', hideNodeDetails);
+    }
+    
+    function hideNodeDetails() {
+        // Remove the details panel
+        d3.select('#network-details-panel').remove();
+        
+        // Reset link and node styling
+        if (d3.select('#network-graph svg').size() > 0) {
+            const link = d3.selectAll('#network-graph line');
+            const node = d3.selectAll('#network-graph circle');
+            
+            link.attr('stroke-opacity', 0.6);
+            node.attr('opacity', 1);
+        }
+    }
+    
+    // Functions for node dragging
     function dragstarted(event) {
         if (!event.active) simulation.alphaTarget(0.3).restart();
         event.subject.fx = event.subject.x;
@@ -2426,3 +3010,922 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
     document.head.appendChild(styleElement);
 });
+
+// Initialize the dashboard after document loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Hide loading indicator initially
+    showLoading(false);
+    
+    // Set up event listeners
+    document.getElementById('analyze-btn').addEventListener('click', handleAnalyzeClick);
+    
+    // Set up network controls
+    setupNetworkControls();
+    
+    // Set up topics range slider
+    const topicsCountSlider = document.getElementById('topics-count');
+    if (topicsCountSlider) {
+        topicsCountSlider.addEventListener('input', function() {
+            document.getElementById('topics-count-value').textContent = this.value;
+        });
+        
+        document.getElementById('update-topics-btn').addEventListener('click', function() {
+            const topicsCount = topicsCountSlider.value;
+            const query = document.getElementById('query-input').value;
+            updateTopics(query, topicsCount);
+        });
+    }
+    
+    // Tab change event listener - render charts if empty
+    const analyticsTabs = document.getElementById('analyticsTabs');
+    if (analyticsTabs) {
+        analyticsTabs.addEventListener('shown.bs.tab', async function(event) {
+            const targetId = event.target.getAttribute('data-bs-target');
+            const activeQuery = document.getElementById('query-input').value;
+            
+            if (!activeQuery) return;
+            
+            // ... existing code ...
+        });
+    }
+});
+
+// Function to set up network controls
+function setupNetworkControls() {
+    // Network type radio buttons
+    const networkTypeRadios = document.querySelectorAll('input[name="network-type"]');
+    const contentOptions = document.getElementById('content-options');
+    const similaritySliderContainer = document.getElementById('similarity-slider-container');
+    const minSimilaritySlider = document.getElementById('min-similarity-slider');
+    const similarityValueDisplay = document.getElementById('similarity-value');
+    const updateNetworkBtn = document.getElementById('update-network-btn');
+    
+    // Initially hide content-specific controls when in interaction mode
+    if (contentOptions && similaritySliderContainer) {
+        // Check initial state
+        const isContentNetwork = document.getElementById('content-network').checked;
+        contentOptions.style.display = isContentNetwork ? 'block' : 'none';
+        similaritySliderContainer.style.display = isContentNetwork ? 'block' : 'none';
+    }
+    
+    // Add event listeners to network type radio buttons
+    if (networkTypeRadios) {
+        networkTypeRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (contentOptions && similaritySliderContainer) {
+                    const isContentNetwork = this.value === 'content_sharing';
+                    contentOptions.style.display = isContentNetwork ? 'block' : 'none';
+                    similaritySliderContainer.style.display = isContentNetwork ? 'block' : 'none';
+                }
+            });
+        });
+    }
+    
+    // Add event listener to similarity slider
+    if (minSimilaritySlider && similarityValueDisplay) {
+        minSimilaritySlider.addEventListener('input', function() {
+            const sliderValue = parseFloat(this.value) * 100;
+            similarityValueDisplay.textContent = sliderValue.toFixed(0) + '%';
+        });
+    }
+    
+    // Add event listener to update network button
+    if (updateNetworkBtn) {
+        updateNetworkBtn.addEventListener('click', async function() {
+            const query = document.getElementById('query-input').value;
+            if (query) {
+                try {
+                    await updateNetwork(query);
+                    // Update network description after data is loaded
+                    updateSectionDescription('network', '#network-description', {
+                        nodeCount: document.querySelectorAll('#network-graph circle').length
+                    });
+                } catch (error) {
+                    console.error('Error updating network:', error);
+                    document.getElementById('network-graph').innerHTML = '<p class="text-danger">Error loading network data</p>';
+                }
+            } else {
+                alert('Please enter a search query first');
+            }
+        });
+    }
+}
+
+// Topic Evolution Visualization
+async function updateTopicEvolution(query) {
+    try {
+        // First, get topic data
+        const topicsCount = document.getElementById('topics-count').value || 5;
+        const response = await fetch(`/api/topics?n_topics=${topicsCount}&query=${encodeURIComponent(query)}`);
+        
+        if (!response.ok) {
+            throw new Error(`Topics request failed with status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Check if we have valid data with topic evolution
+        if (!data || !data.topic_evolution || Object.keys(data.topic_evolution).length === 0) {
+            document.getElementById('topic-evolution-chart').innerHTML = 
+                '<div class="alert alert-info">Not enough data available to show topic evolution for this query.</div>';
+            return;
+        }
+        
+        // Clear previous chart
+        d3.select('#topic-evolution-chart').html('');
+        
+        const chartContainer = document.getElementById('topic-evolution-chart');
+        const containerWidth = chartContainer.clientWidth || 800;
+        const margin = {top: 30, right: 150, bottom: 50, left: 60}; // Extra right margin for labels
+        const width = containerWidth - margin.left - margin.right;
+        const height = 400 - margin.top - margin.bottom;
+        
+        // Create SVG container
+        const svg = d3.select('#topic-evolution-chart')
+            .append('svg')
+            .attr('width', width + margin.left + margin.right)
+            .attr('height', height + margin.top + margin.bottom)
+            .append('g')
+            .attr('transform', `translate(${margin.left},${margin.top})`);
+        
+        // Process data for visualization
+        const timeData = {};
+        const allDates = new Set();
+        const topicIds = [];
+        
+        // Collect all dates and topic ids
+        for (const [topicId, dateCounts] of Object.entries(data.topic_evolution)) {
+            topicIds.push(topicId);
+            for (const date of Object.keys(dateCounts)) {
+                allDates.add(date);
+            }
+        }
+        
+        // Sort dates chronologically
+        const sortedDates = Array.from(allDates).sort();
+        
+        // Create a mapping of topic IDs to human-readable topic labels
+        const topicLabels = {};
+        topicIds.forEach(topicId => {
+            const topicNumber = topicId.split('_')[1];
+            const topic = data.topics.find(t => t.topic_id == topicNumber);
+            if (topic && topic.top_words) {
+                topicLabels[topicId] = `Topic ${topicNumber}: ${topic.top_words.slice(0, 3).join(', ')}`;
+            } else {
+                topicLabels[topicId] = `Topic ${topicNumber}`;
+            }
+        });
+        
+        // Create data points for each topic over time
+        const chartData = [];
+        topicIds.forEach((topicId, i) => {
+            const topicData = {
+                id: topicId,
+                name: topicLabels[topicId],
+                values: []
+            };
+            
+            // Add values for all dates (filling in zeros for missing dates)
+            sortedDates.forEach(date => {
+                const dateObj = new Date(date);
+                const value = data.topic_evolution[topicId][date] || 0;
+                topicData.values.push({
+                    date: dateObj,
+                    value: value,
+                    topicId: topicId
+                });
+            });
+            
+            chartData.push(topicData);
+        });
+        
+        // Smooth the data (simple moving average)
+        const smoothingWindow = Math.min(3, sortedDates.length);
+        chartData.forEach(topic => {
+            if (smoothingWindow > 1) {
+                for (let i = 0; i < topic.values.length; i++) {
+                    let sum = 0;
+                    let count = 0;
+                    
+                    for (let j = Math.max(0, i - Math.floor(smoothingWindow/2)); 
+                         j <= Math.min(topic.values.length - 1, i + Math.floor(smoothingWindow/2)); j++) {
+                        sum += topic.values[j].value;
+                        count++;
+                    }
+                    
+                    topic.values[i].smoothedValue = sum / count;
+                }
+            } else {
+                topic.values.forEach(v => v.smoothedValue = v.value);
+            }
+        });
+        
+        // Find topics with significant trends (increase or decrease)
+        chartData.forEach(topic => {
+            if (topic.values.length > 2) {
+                const firstHalf = topic.values.slice(0, Math.floor(topic.values.length/2));
+                const secondHalf = topic.values.slice(Math.floor(topic.values.length/2));
+                
+                const firstHalfAvg = d3.mean(firstHalf, d => d.value) || 0;
+                const secondHalfAvg = d3.mean(secondHalf, d => d.value) || 0;
+                
+                // Calculate trend change percentage
+                if (firstHalfAvg > 0) {
+                    topic.trendChange = ((secondHalfAvg - firstHalfAvg) / firstHalfAvg * 100).toFixed(1);
+                } else {
+                    topic.trendChange = secondHalfAvg > 0 ? "∞" : "0";
+                }
+                
+                // Determine trend direction
+                if (secondHalfAvg > firstHalfAvg * 1.2) {
+                    topic.trend = 'rising';
+                } else if (secondHalfAvg < firstHalfAvg * 0.8) {
+                    topic.trend = 'falling';
+                } else {
+                    topic.trend = 'stable';
+                }
+            } else {
+                topic.trend = 'unknown';
+                topic.trendChange = 'N/A';
+            }
+        });
+        
+        // Sort topics by trend (rising first, then falling, then stable)
+        chartData.sort((a, b) => {
+            const trendOrder = { 'rising': 0, 'stable': 1, 'falling': 2, 'unknown': 3 };
+            return trendOrder[a.trend] - trendOrder[b.trend];
+        });
+        
+        // Setup scales
+        const x = d3.scaleTime()
+            .domain(d3.extent(sortedDates, d => new Date(d)))
+            .range([0, width]);
+        
+        // Find max value across all topics and dates
+        const maxValue = d3.max(chartData, d => d3.max(d.values, v => v.value)) * 1.1;
+        
+        const y = d3.scaleLinear()
+            .domain([0, maxValue])
+            .range([height, 0]);
+        
+        // Color scale for topics
+        const color = d3.scaleOrdinal()
+            .domain(topicIds)
+            .range(d3.schemeCategory10);
+        
+        // Add axes
+        svg.append('g')
+            .attr('transform', `translate(0,${height})`)
+            .call(d3.axisBottom(x).ticks(5).tickFormat(d3.timeFormat('%b %d')))
+            .selectAll('text')
+            .style('text-anchor', 'end')
+            .attr('dx', '-.8em')
+            .attr('dy', '.15em')
+            .attr('transform', 'rotate(-45)');
+        
+        svg.append('g')
+            .call(d3.axisLeft(y));
+        
+        // Add title
+        svg.append('text')
+            .attr('x', width / 2)
+            .attr('y', -10)
+            .attr('text-anchor', 'middle')
+            .style('font-size', '16px')
+            .style('font-weight', 'bold')
+            .text(`Topic Evolution for "${query}"`);
+        
+        // Create area generator
+        const area = d3.area()
+            .x(d => x(d.date))
+            .y0(height)
+            .y1(d => y(d.smoothedValue))
+            .curve(d3.curveMonotoneX);
+        
+        // Create line generator
+        const line = d3.line()
+            .x(d => x(d.date))
+            .y(d => y(d.smoothedValue))
+            .curve(d3.curveMonotoneX);
+        
+        // Add topic areas with reduced opacity
+        chartData.forEach(topic => {
+            svg.append('path')
+                .datum(topic.values)
+                .attr('fill', color(topic.id))
+                .attr('fill-opacity', 0.1)
+                .attr('d', area);
+        });
+        
+        // Add topic lines
+        chartData.forEach(topic => {
+            svg.append('path')
+                .datum(topic.values)
+                .attr('fill', 'none')
+                .attr('stroke', color(topic.id))
+                .attr('stroke-width', 2)
+                .attr('d', line);
+            
+            // Add circles at the last point of each line
+            const lastPoint = topic.values[topic.values.length - 1];
+            
+            svg.append('circle')
+                .attr('cx', x(lastPoint.date))
+                .attr('cy', y(lastPoint.smoothedValue))
+                .attr('r', 4)
+                .attr('fill', color(topic.id))
+                .attr('stroke', '#fff')
+                .attr('stroke-width', 1);
+        });
+        
+        // Add topic labels at the end of each line
+        chartData.forEach((topic, i) => {
+            const lastPoint = topic.values[topic.values.length - 1];
+            
+            // Stagger the labels vertically to avoid overlap
+            const yOffset = i * 18 - (chartData.length * 9) + 10;
+            
+            svg.append('line')
+                .attr('x1', x(lastPoint.date))
+                .attr('y1', y(lastPoint.smoothedValue))
+                .attr('x2', width + 15)
+                .attr('y2', y(lastPoint.smoothedValue) + yOffset)
+                .attr('stroke', color(topic.id))
+                .attr('stroke-width', 1)
+                .attr('stroke-dasharray', '3,3')
+                .attr('opacity', 0.7);
+            
+            // Create a group for the label
+            const labelGroup = svg.append('g')
+                .attr('transform', `translate(${width + 20}, ${y(lastPoint.smoothedValue) + yOffset})`);
+            
+            // Add trend indicator symbol
+            const trendSymbol = topic.trend === 'rising' ? '↑' : (topic.trend === 'falling' ? '↓' : '→');
+            const trendColor = topic.trend === 'rising' ? '#20c997' : (topic.trend === 'falling' ? '#dc3545' : '#6c757d');
+            
+            labelGroup.append('text')
+                .attr('x', 0)
+                .attr('y', 0)
+                .style('font-size', '14px')
+                .style('font-weight', 'bold')
+                .style('fill', trendColor)
+                .text(trendSymbol);
+            
+            // Add topic label text
+            const topWords = topic.name.split(':')[1] || '';
+            labelGroup.append('text')
+                .attr('x', 15)
+                .attr('y', 0)
+                .style('font-size', '11px')
+                .style('font-weight', 'normal')
+                .text(topWords);
+            
+            // Add trend percentage
+            if (topic.trend !== 'unknown') {
+                const trendText = topic.trend === 'rising' ? `+${topic.trendChange}%` : 
+                                 (topic.trend === 'falling' ? `${topic.trendChange}%` : '');
+                
+                if (trendText) {
+                    labelGroup.append('text')
+                        .attr('x', 105)
+                        .attr('y', 0)
+                        .style('font-size', '10px')
+                        .style('fill', trendColor)
+                        .text(trendText);
+                }
+            }
+        });
+        
+        // Add X axis label
+        svg.append('text')
+            .attr('x', width / 2)
+            .attr('y', height + 40)
+            .style('text-anchor', 'middle')
+            .text('Date');
+        
+        // Add Y axis label
+        svg.append('text')
+            .attr('transform', 'rotate(-90)')
+            .attr('y', 0 - margin.left)
+            .attr('x', 0 - (height / 2))
+            .attr('dy', '1em')
+            .style('text-anchor', 'middle')
+            .text('Topic Prevalence');
+        
+        // Add interactive hover effects
+        const focusLine = svg.append('line')
+            .attr('class', 'focus-line')
+            .attr('stroke', '#999')
+            .attr('stroke-width', 1)
+            .attr('stroke-dasharray', '3,3')
+            .attr('y1', 0)
+            .attr('y2', height)
+            .style('opacity', 0);
+        
+        const focusCircles = chartData.map(topic => {
+            return svg.append('circle')
+                .attr('class', 'focus-circle')
+                .attr('r', 6)
+                .attr('stroke', color(topic.id))
+                .attr('stroke-width', 2)
+                .attr('fill', '#fff')
+                .style('opacity', 0);
+        });
+        
+        const focusTextBg = svg.append('rect')
+            .attr('class', 'focus-text-bg')
+            .attr('fill', 'white')
+            .attr('rx', 5)
+            .attr('ry', 5)
+            .attr('width', 180)
+            .attr('height', chartData.length * 20 + 30)
+            .style('opacity', 0);
+        
+        const focusText = svg.append('g')
+            .attr('class', 'focus-text')
+            .style('opacity', 0);
+        
+        // Add mouse tracking overlay
+        const overlay = svg.append('rect')
+            .attr('width', width)
+            .attr('height', height)
+            .style('fill', 'none')
+            .style('pointer-events', 'all')
+            .on('mouseover', function() {
+                focusLine.style('opacity', 1);
+                focusCircles.forEach(circle => circle.style('opacity', 1));
+                focusTextBg.style('opacity', 0.9);
+                focusText.style('opacity', 1);
+            })
+            .on('mouseout', function() {
+                focusLine.style('opacity', 0);
+                focusCircles.forEach(circle => circle.style('opacity', 0));
+                focusTextBg.style('opacity', 0);
+                focusText.style('opacity', 0);
+            })
+            .on('mousemove', mousemove);
+        
+        function mousemove(event) {
+            const mouse = d3.pointer(event);
+            const dateValue = x.invert(mouse[0]);
+            
+            // Find the closest date in our data
+            let closestDate = sortedDates[0];
+            let closestDistance = Math.abs(new Date(closestDate) - dateValue);
+            
+            for (let i = 1; i < sortedDates.length; i++) {
+                const distance = Math.abs(new Date(sortedDates[i]) - dateValue);
+                if (distance < closestDistance) {
+                    closestDate = sortedDates[i];
+                    closestDistance = distance;
+                }
+            }
+            
+            // Position the line at the closest date
+            const xPos = x(new Date(closestDate));
+            focusLine.attr('x1', xPos).attr('x2', xPos);
+            
+            // Set position for tooltip
+            const tooltipX = xPos > width/2 ? xPos - 190 : xPos + 10;
+            const tooltipY = 20;
+            
+            focusTextBg
+                .attr('x', tooltipX)
+                .attr('y', tooltipY);
+            
+            focusText.selectAll('*').remove();
+            
+            // Add date to tooltip
+            focusText.append('text')
+                .attr('x', tooltipX + 10)
+                .attr('y', tooltipY + 20)
+                .style('font-weight', 'bold')
+                .text(new Date(closestDate).toLocaleDateString());
+            
+            // Update circle positions and add topic values to tooltip
+            chartData.forEach((topic, i) => {
+                const topicData = topic.values.find(v => v.date.getTime() === new Date(closestDate).getTime());
+                
+                if (topicData) {
+                    // Position circle
+                    focusCircles[i]
+                        .attr('cx', xPos)
+                        .attr('cy', y(topicData.smoothedValue));
+                    
+                    // Add topic data to tooltip
+                    focusText.append('text')
+                        .attr('x', tooltipX + 10)
+                        .attr('y', tooltipY + 20 + ((i + 1) * 20))
+                        .style('fill', color(topic.id))
+                        .text(`${topic.name.split(':')[1]}: ${Math.round(topicData.value * 100) / 100}`);
+                }
+            });
+        }
+        
+        // Update the topic evolution description after data is loaded
+        updateSectionDescription('topic_evolution', '#topic-evolution-description', {
+            topicCount: topicsCount,
+            trendData: chartData.map(topic => ({
+                name: topic.name,
+                trend: topic.trend,
+                change: topic.trendChange
+            }))
+        });
+        
+    } catch (error) {
+        console.error('Error updating topic evolution:', error);
+        document.getElementById('topic-evolution-chart').innerHTML = 
+            `<div class="alert alert-danger">Error loading topic evolution data: ${error.message}</div>`;
+    }
+}
+
+// Community Distribution Pie Chart
+async function updateCommunityDistributionPieChart(query) {
+    try {
+        // We'll use the top contributors API and enhance it to include community data
+        const response = await fetch(`/api/top_contributors?query=${encodeURIComponent(query)}&limit=20`);
+        if (!response.ok) {
+            throw new Error(`Request failed with status: ${response.status}`);
+        }
+        
+        const contributorData = await response.json();
+        
+        // Also fetch AI summary data which contains subreddit distribution
+        const summaryResponse = await fetch(`/api/ai_summary?query=${encodeURIComponent(query)}`);
+        if (!summaryResponse.ok) {
+            throw new Error(`Summary request failed with status: ${summaryResponse.status}`);
+        }
+        
+        const summaryData = await summaryResponse.json();
+        
+        // Extract subreddit data from summary if available
+        let subredditData = [];
+        if (summaryData && summaryData.metrics && summaryData.metrics.top_subreddits) {
+            subredditData = Object.entries(summaryData.metrics.top_subreddits).map(([name, count]) => ({
+                name,
+                count
+            }));
+        } else {
+            // If no subreddit data in summary, create placeholder message
+            document.getElementById('community-distribution').innerHTML = 
+                '<div class="alert alert-info">No community distribution data available for this query.</div>';
+            return;
+        }
+        
+        // Add "Other" category if we have more than 7 subreddits to keep chart readable
+        if (subredditData.length > 7) {
+            const topSubreddits = subredditData.slice(0, 6);
+            const otherSubreddits = subredditData.slice(6);
+            const otherCount = otherSubreddits.reduce((sum, item) => sum + item.count, 0);
+            
+            subredditData = [
+                ...topSubreddits,
+                { name: 'Other Communities', count: otherCount }
+            ];
+        }
+        
+        // Sort by count
+        subredditData.sort((a, b) => b.count - a.count);
+        
+        // Clear previous chart
+        d3.select('#community-distribution').html('');
+        
+        const container = document.getElementById('community-distribution');
+        const width = container.clientWidth || 600;
+        const height = Math.min(500, width * 0.8);
+        const radius = Math.min(width, height) / 2 - 30;
+        
+        // Create SVG
+        const svg = d3.select('#community-distribution')
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height)
+            .append('g')
+            .attr('transform', `translate(${width / 2},${height / 2})`);
+        
+        // Set color scale
+        const color = d3.scaleOrdinal()
+            .domain(subredditData.map(d => d.name))
+            .range(d3.schemeCategory10);
+        
+        // Compute the position of each group on the pie
+        const pie = d3.pie()
+            .value(d => d.count)
+            .sort(null); // Keep the original order
+        
+        const pieData = pie(subredditData);
+        
+        // Shape helper to build arcs
+        const arc = d3.arc()
+            .innerRadius(radius * 0.4) // Create a donut chart
+            .outerRadius(radius);
+        
+        // Another arc for labels
+        const outerArc = d3.arc()
+            .innerRadius(radius * 1.1)
+            .outerRadius(radius * 1.1);
+        
+        // Build the pie chart
+        const slices = svg.selectAll('path')
+            .data(pieData)
+            .enter()
+            .append('path')
+            .attr('d', arc)
+            .attr('fill', d => color(d.data.name))
+            .attr('stroke', 'white')
+            .style('stroke-width', '2px')
+            .style('opacity', 0.8)
+            .on('mouseover', function(event, d) {
+                d3.select(this)
+                    .style('opacity', 1)
+                    .style('stroke-width', '3px')
+                    .transition()
+                    .duration(200)
+                    .attr('d', d3.arc()
+                        .innerRadius(radius * 0.4)
+                        .outerRadius(radius * 1.05));
+                
+                // Show percentage in center
+                centerText.text(`${d.data.name}`);
+                centerSubText.text(`${d.data.count} posts (${Math.round(d.data.count / totalPosts * 100)}%)`);
+            })
+            .on('mouseout', function() {
+                d3.select(this)
+                    .style('opacity', 0.8)
+                    .style('stroke-width', '2px')
+                    .transition()
+                    .duration(200)
+                    .attr('d', arc);
+                
+                // Reset center text
+                centerText.text('Community');
+                centerSubText.text('Distribution');
+            });
+        
+        // Calculate total posts for percentage display
+        const totalPosts = subredditData.reduce((sum, item) => sum + item.count, 0);
+        
+        // Add hoverable center text
+        const centerText = svg.append('text')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '0em')
+            .style('font-size', '1.3em')
+            .style('font-weight', 'bold')
+            .text('Community');
+        
+        const centerSubText = svg.append('text')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '1.5em')
+            .style('font-size', '1em')
+            .text('Distribution');
+        
+        // Add a title
+        svg.append('text')
+            .attr('x', 0)
+            .attr('y', -height/2 + 20)
+            .attr('text-anchor', 'middle')
+            .style('font-size', '16px')
+            .style('font-weight', 'bold')
+            .text(`Community Distribution for "${query}"`);
+        
+        // Add labels with lines connecting to slices
+        svg.selectAll('polyline')
+            .data(pieData)
+            .enter()
+            .append('polyline')
+            .attr('stroke', 'black')
+            .style('fill', 'none')
+            .attr('stroke-width', 1)
+            .attr('points', function(d) {
+                const pos = outerArc.centroid(d);
+                pos[0] = radius * 0.95 * (midAngle(d) < Math.PI ? 1 : -1);
+                return [arc.centroid(d), outerArc.centroid(d), pos];
+            });
+        
+        svg.selectAll('text.label')
+            .data(pieData)
+            .enter()
+            .append('text')
+            .attr('class', 'label')
+            .attr('dy', '.35em')
+            .attr('transform', function(d) {
+                const pos = outerArc.centroid(d);
+                pos[0] = radius * (midAngle(d) < Math.PI ? 1.05 : -1.05);
+                return `translate(${pos})`;
+            })
+            .style('text-anchor', d => midAngle(d) < Math.PI ? 'start' : 'end')
+            .style('font-size', '12px')
+            .text(d => {
+                const percent = Math.round(d.data.count / totalPosts * 100);
+                // Only show label if slice is big enough
+                return percent > 3 ? `r/${d.data.name} (${percent}%)` : '';
+            });
+        
+        // Helper function to compute the angle in the middle of an arc
+        function midAngle(d) {
+            return d.startAngle + (d.endAngle - d.startAngle) / 2;
+        }
+        
+        // Add legend
+        const legend = svg.selectAll('.legend')
+            .data(pieData)
+            .enter()
+            .append('g')
+            .attr('class', 'legend')
+            .attr('transform', (d, i) => `translate(-${width/2 - 20}, ${i * 20 - height/2 + 50})`);
+        
+        legend.append('rect')
+            .attr('width', 15)
+            .attr('height', 15)
+            .attr('fill', d => color(d.data.name));
+        
+        legend.append('text')
+            .attr('x', 20)
+            .attr('y', 12.5)
+            .attr('font-size', '12px')
+            .text(d => {
+                const maxLength = 20;
+                const name = d.data.name.length > maxLength ? 
+                    d.data.name.substring(0, maxLength) + '...' : d.data.name;
+                return `r/${name} (${d.data.count})`;
+            });
+        
+        // Update the community distribution description
+        updateSectionDescription('community_distribution', '#community-distribution-description', {
+            communityCount: subredditData.length,
+            topCommunities: subredditData.slice(0, 3).map(c => c.name),
+            totalPosts: totalPosts
+        });
+        
+    } catch (error) {
+        console.error('Error updating community distribution:', error);
+        document.getElementById('community-distribution').innerHTML = 
+            `<div class="alert alert-danger">Error loading community distribution: ${error.message}</div>`;
+    }
+}
+
+// Add updateTopicEvolution to the main analysis workflow
+async function handleAnalyzeClick() {
+    const query = document.getElementById('query-input').value;
+    if (!query) {
+        alert('Please enter a search query');
+        return;
+    }
+
+    activeQuery = query;
+    startDate = document.getElementById('start-date').value;
+    endDate = document.getElementById('end-date').value;
+    
+    showLoading(true);
+    
+    try {
+        // Clear all previous visualizations first
+        document.getElementById('network-graph').innerHTML = '';
+        document.getElementById('topics-container').innerHTML = '';
+        document.getElementById('contributors-overview').innerHTML = '';
+        document.getElementById('coordinated-graph').innerHTML = '';
+        document.getElementById('coordinated-groups').innerHTML = '';
+        document.getElementById('word-cloud').innerHTML = '';
+        document.getElementById('timeseries-chart').innerHTML = '';
+        document.getElementById('ai-summary').innerHTML = '';
+        document.getElementById('topic-evolution-chart').innerHTML = '';
+        
+        // Reset data story with placeholder
+        document.getElementById('data-story').innerHTML = `
+            <div class="card-body">
+                <p class="text-muted">Generating comprehensive data story for "${query}"...</p>
+            </div>
+        `;
+        
+        // PERFORMANCE OPTIMIZATION: Load data progressively in phases
+        // Phase 1: First load critical data for the overview tab
+        const criticalPromises = [
+            // Update AI summary - essential for overview
+            updateOverview(query).catch(error => {
+                console.error('Error updating overview:', error);
+                document.getElementById('ai-summary').innerHTML = '<p class="text-danger">Error loading overview data</p>';
+            }),
+            // Update top contributors (small visualization) - essential for overview
+            updateContributorsOverview(query).catch(error => {
+                console.error('Error updating contributors overview:', error);
+                document.getElementById('contributors-overview').innerHTML = '<p class="text-danger">Error loading contributors data</p>';
+            }),
+            // Update word cloud - lightweight visualization for overview
+            updateWordCloud(query).catch(error => {
+                console.error('Error updating word cloud:', error);
+                document.getElementById('word-cloud').innerHTML = '<p class="text-danger">Error loading word cloud data</p>';
+            }),
+        ];
+
+        // Wait for critical components first
+        await Promise.allSettled(criticalPromises);
+        
+        // Update dynamic descriptions for the overview sections first
+        const overviewDescriptionPromises = [
+            updateSectionDescription('ai_insights', '#ai-insights-description'),
+            updateSectionDescription('data_story', '#data-story-description'),
+            updateSectionDescription('word_cloud', '#word-cloud-description'),
+            updateSectionDescription('contributors', '#contributors-description')
+        ];
+        
+        // Process overview descriptions in the background
+        Promise.allSettled(overviewDescriptionPromises);
+        
+        // Hide the main loading spinner as critical content is loaded
+        showLoading(false);
+        
+        // Mark that analysis has been performed
+        analysisPerformed = true;
+        
+        // PERFORMANCE OPTIMIZATION: Create placeholder loading indicators for remaining components
+        document.getElementById('timeseries-chart').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading time series analysis...</div>';
+        document.getElementById('topic-evolution-chart').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading topic evolution analysis...</div>';
+        document.getElementById('network-graph').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading network analysis...</div>';
+        document.getElementById('topics-container').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading topic analysis...</div>';
+        document.getElementById('coordinated-graph').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading coordinated behavior analysis...</div>';
+        document.getElementById('coordinated-groups').innerHTML = '';
+        
+        // Phase 2: Load the data story and time series (medium weight)
+        // Generate a data story based on the analyzed results
+        setTimeout(async () => {
+            try {
+                await generateDataStory(query);
+                
+                // Update time series (important for overview)
+                await updateTimeSeries(query).catch(error => {
+                    console.error('Error updating time series:', error);
+                    document.getElementById('timeseries-chart').innerHTML = '<p class="text-danger">Error loading time series data</p>';
+                });
+                
+                // Update topic evolution chart
+                await updateTopicEvolution(query).catch(error => {
+                    console.error('Error updating topic evolution:', error);
+                    document.getElementById('topic-evolution-chart').innerHTML = '<p class="text-danger">Error loading topic evolution data</p>';
+                });
+                
+                // Update timeseries description after data is loaded
+                updateSectionDescription('timeseries', '#timeseries-description', {
+                    dataPoints: document.querySelectorAll('#timeseries-chart circle.dot').length
+                });
+                
+                // Phase 3: Now load the remaining heavier visualizations in the background
+                // This allows the user to start interacting with the dashboard while heavy visualizations load
+                setTimeout(async () => {
+                    // Process remaining heavy visualizations in sequence to reduce load
+                    try {
+                        await updateTopics(query);
+                        // Update topics description after data is loaded
+                        updateSectionDescription('topics', '#topics-description', {
+                            topicCount: document.getElementById('topics-count').value
+                        });
+                    } catch (error) {
+                        console.error('Error updating topics:', error);
+                        document.getElementById('topics-container').innerHTML = '<p class="text-danger">Error loading topics data</p>';
+                    }
+                    
+                    try {
+                        await updateNetwork(query);
+                        // Update network description after data is loaded
+                        updateSectionDescription('network', '#network-description', {
+                            nodeCount: document.querySelectorAll('#network-graph circle').length
+                        });
+                    } catch (error) {
+                        console.error('Error updating network:', error);
+                        document.getElementById('network-graph').innerHTML = '<p class="text-danger">Error loading network data</p>';
+                    }
+                    
+                    try {
+                        await updateCoordinatedBehavior();
+                        // Update coordinated behavior descriptions after data is loaded
+                        updateSectionDescription('coordinated', '#coordinated-description', {
+                            timeWindow: document.getElementById('time-window').value,
+                            similarityThreshold: document.getElementById('similarity-threshold').value
+                        });
+                    } catch (error) {
+                        console.error('Error updating coordinated behavior:', error);
+                        document.getElementById('coordinated-graph').innerHTML = '<p class="text-danger">Error loading coordinated behavior data</p>';
+                        document.getElementById('coordinated-groups').innerHTML = '<p class="text-danger">Error loading coordinated groups data</p>';
+                    }
+                    
+                    // Update pie chart of contributors
+                    try {
+                        await updateCommunityDistributionPieChart(query);
+                    } catch (error) {
+                        console.error('Error updating community distribution:', error);
+                        document.getElementById('community-distribution').innerHTML = '<p class="text-danger">Error loading community distribution data</p>';
+                    }
+                    
+                    console.log('All visualizations loaded');
+                }, 100);
+                
+            } catch (error) {
+                console.error('Error in phase 2 loading:', error);
+            }
+        }, 10);
+        
+    } catch (error) {
+        console.error('Error during analysis:', error);
+        alert('Error performing analysis. Please check the console for details.');
+        showLoading(false);
+    }
+}
