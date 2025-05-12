@@ -16,3 +16,6 @@ python-louvain
 sentencepiece
 requests
 community
+umap-learn
+sentence-transformers
+scipy

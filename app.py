@@ -14,6 +14,10 @@ from dotenv import load_dotenv
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from collections import defaultdict
+import umap.umap_ as umap
+from sentence_transformers import SentenceTransformer
+import traceback
+import math
 
 # Load environment variables from .env file if it exists
 load_dotenv()
@@ -32,6 +36,9 @@ try:
     t5_tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-small")
     t5_model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-small")
     
+    # Initialize sentence transformer for embeddings
+    semantic_model = None  # Will be loaded on demand to save memory
+    
     # Check for Groq API key
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
     has_groq = GROQ_API_KEY is not None and GROQ_API_KEY != ""
@@ -43,6 +50,7 @@ except Exception as e:
     print(f"Error initializing models: {e}")
     t5_tokenizer = None
     t5_model = None
+    semantic_model = None
     has_groq = False
 
 # Load dataset on startup
@@ -1185,6 +1193,540 @@ def get_dynamic_description():
             'description': default_description.get(section, "This section analyzes data based on your query."),
             'error': str(e)
         })
+
+@app.route('/api/semantic_map', methods=['GET'])
+def get_semantic_map():
+    """
+    Generates semantic embeddings for posts matching a query and creates a 2D visualization map.
+    
+    This endpoint:
+    1. Filters posts based on the search query
+    2. Generates semantic embeddings using a pre-trained language model
+    3. Applies dimensionality reduction (UMAP) to create a 2D representation
+    4. Returns the 2D points with metadata for visualization
+    
+    Query Parameters:
+        query (str): Search term to filter posts
+        max_points (int, optional): Maximum number of posts to include (default: 500)
+        min_cluster_size (int, optional): Minimum cluster size for HDBSCAN (default: 5)
+    
+    Returns:
+        JSON: Object containing 2D points, metadata, and cluster assignments
+    """
+    if data is None:
+        return jsonify({'error': 'No data loaded'}), 400
+    
+    query = request.args.get('query', '')
+    max_points = min(int(request.args.get('max_points', 500)), 2000)  # Cap at 2000 for performance
+    n_neighbors = int(request.args.get('n_neighbors', 15))
+    min_dist = float(request.args.get('min_dist', 0.1))
+    
+    try:
+        # Filter data based on query
+        filtered_data = data
+        if query:
+            filtered_data = data[
+                data['selftext'].str.contains(query, case=False, na=False) |
+                data['title'].str.contains(query, case=False, na=False)
+            ]
+        
+        if len(filtered_data) == 0:
+            return jsonify({'error': 'No data found matching the query'}), 404
+        
+        # If we have too many posts, sample to improve performance
+        if len(filtered_data) > max_points:
+            filtered_data = filtered_data.sample(max_points, random_state=42)
+        
+        # Prepare text for embedding - combine title and selftext
+        text_data = []
+        for idx, row in filtered_data.iterrows():
+            title = row['title'] if isinstance(row['title'], str) else ""
+            selftext = row['selftext'] if isinstance(row['selftext'], str) and pd.notna(row['selftext']) else ""
+            # Limit text length to avoid extremely long documents
+            combined_text = (title + " " + selftext[:500]).strip()
+            text_data.append(combined_text)
+        
+        # Load the sentence transformer model on demand
+        global semantic_model
+        if semantic_model is None:
+            try:
+                # Use a smaller, faster model for embeddings
+                semantic_model = SentenceTransformer('all-MiniLM-L6-v2')
+                print("Loaded semantic embedding model successfully")
+            except Exception as e:
+                print(f"Error loading semantic model: {e}")
+                return jsonify({'error': 'Failed to load semantic model'}), 500
+        
+        # Generate embeddings
+        embeddings = semantic_model.encode(text_data, show_progress_bar=True)
+        
+        # Apply UMAP for dimensionality reduction
+        reducer = umap.UMAP(
+            n_neighbors=n_neighbors,
+            min_dist=min_dist,
+            n_components=2,
+            metric='cosine',
+            random_state=42
+        )
+        
+        reduced_embeddings = reducer.fit_transform(embeddings)
+        
+        # Prepare result points with metadata
+        points = []
+        for i, (idx, row) in enumerate(filtered_data.iterrows()):
+            points.append({
+                'x': float(reduced_embeddings[i, 0]),
+                'y': float(reduced_embeddings[i, 1]),
+                'id': str(i),
+                'title': row['title'],
+                'author': row['author'],
+                'subreddit': row.get('subreddit', ''),
+                'created_utc': row['created_utc'].isoformat(),
+                'num_comments': int(row.get('num_comments', 0)),
+                'score': int(row.get('score', 0)),
+                'preview_text': (row.get('selftext', '')[:100] + '...' if len(row.get('selftext', '') or '') > 100 
+                                else row.get('selftext', ''))
+            })
+        
+        # Try to extract topics from clusters of points
+        topics = []
+        try:
+            from sklearn.cluster import KMeans
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            
+            # Use K-means to find clusters in the embedding space
+            n_clusters = min(10, max(3, len(points) // 50))  # Dynamic number of clusters
+            kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+            clusters = kmeans.fit_predict(reduced_embeddings)
+            
+            # Add cluster assignments to points
+            for i, point in enumerate(points):
+                point['cluster'] = int(clusters[i])
+            
+            # Extract keywords for each cluster
+            for cluster_id in range(n_clusters):
+                cluster_texts = [text_data[i] for i in range(len(text_data)) if clusters[i] == cluster_id]
+                
+                if cluster_texts:
+                    # Use TF-IDF to find distinctive words for this cluster
+                    tfidf = TfidfVectorizer(max_features=200, stop_words='english')
+                    try:
+                        cluster_tfidf = tfidf.fit_transform(cluster_texts)
+                        
+                        # Get top terms
+                        feature_names = tfidf.get_feature_names_out()
+                        top_indices = np.argsort(np.asarray(cluster_tfidf.mean(axis=0)).flatten())[-7:]
+                        top_terms = [feature_names[i] for i in top_indices]
+                        
+                        # Calculate cluster center
+                        cluster_points = reduced_embeddings[clusters == cluster_id]
+                        center_x = float(np.mean(cluster_points[:, 0]))
+                        center_y = float(np.mean(cluster_points[:, 1]))
+                        
+                        topics.append({
+                            'id': int(cluster_id),
+                            'terms': top_terms,
+                            'size': int(np.sum(clusters == cluster_id)),
+                            'center_x': center_x,
+                            'center_y': center_y
+                        })
+                    except:
+                        # Skip if TF-IDF fails for some reason
+                        pass
+        except Exception as e:
+            print(f"Error extracting topics: {e}")
+            # Continue without topics if clustering fails
+        
+        return jsonify({
+            'points': points,
+            'topics': topics,
+            'total_posts': len(points),
+            'umap_params': {
+                'n_neighbors': n_neighbors,
+                'min_dist': min_dist
+            }
+        })
+    
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': f'Error generating semantic map: {str(e)}'}), 500
+
+@app.route('/api/chatbot', methods=['POST'])
+def chatbot_response():
+    """
+    Processes user queries about the dataset and returns AI-generated insights.
+    
+    This endpoint:
+    1. Takes a user's natural language query about the data
+    2. Analyzes relevant data based on the query
+    3. Generates a contextual response with insights and trend analysis
+    4. Optionally includes relevant metrics and visualizations references
+    
+    Request Body:
+        query (str): The user's question or request
+        context (dict, optional): Additional context from previous interactions
+    
+    Returns:
+        JSON: Object containing the chatbot response, relevant metrics, and visualization suggestions
+    """
+    if data is None:
+        return jsonify({'error': 'No data loaded'}), 400
+    
+    # Get request data
+    request_data = request.get_json()
+    if not request_data or 'query' not in request_data:
+        return jsonify({'error': 'Missing query parameter'}), 400
+    
+    user_query = request_data['query']
+    chat_history = request_data.get('history', [])
+    
+    try:
+        # Process the user query to determine intent and extract key terms
+        query_keywords = []
+        intent = "general"
+        
+        # Basic keyword extraction and intent classification
+        lower_query = user_query.lower()
+        
+        # Check for trend-related queries
+        if any(word in lower_query for word in ['trend', 'change', 'over time', 'evolve', 'increase', 'decrease']):
+            intent = "trend"
+        # Check for topic-related queries
+        elif any(word in lower_query for word in ['topic', 'theme', 'about', 'discuss']):
+            intent = "topic"
+        # Check for community-related queries
+        elif any(word in lower_query for word in ['community', 'subreddit', 'group', 'people']):
+            intent = "community"
+        # Check for comparison queries
+        elif any(word in lower_query for word in ['compare', 'difference', 'versus', 'vs', 'similarities']):
+            intent = "comparison"
+        
+        # Extract potential search terms - this is a basic implementation
+        # For a more robust solution, consider using NLP libraries like spaCy
+        import re
+        # Look for quoted text as exact search terms
+        quoted_terms = re.findall(r'"([^"]*)"', user_query)
+        # Remove quoted text from query
+        clean_query = re.sub(r'"[^"]*"', '', user_query)
+        # Extract remaining potential keywords (words of 4+ chars)
+        additional_keywords = [word for word in re.findall(r'\b[a-zA-Z]{4,}\b', clean_query) 
+                            if word.lower() not in ['what', 'when', 'where', 'which', 'about', 'tell', 
+                                                 'show', 'give', 'find', 'many', 'much', 'most',
+                                                'least', 'more', 'less', 'data', 'query', 'information']]
+        
+        # Combine quoted terms and additional keywords
+        query_keywords = quoted_terms + additional_keywords
+        
+        # Use the extracted keywords for searching the dataset
+        search_query = ' '.join(query_keywords) if query_keywords else user_query
+        
+        # Filter data based on extracted keywords
+        filtered_data = data
+        if query_keywords:
+            query_pattern = '|'.join(query_keywords)
+            filtered_data = data[
+                data['selftext'].str.contains(query_pattern, case=False, na=False) |
+                data['title'].str.contains(query_pattern, case=False, na=False)
+            ]
+        
+        # If no data matched the keywords, use a broader approach
+        if len(filtered_data) < 5 and query_keywords:
+            # Try with just the first keyword for broader results
+            if query_keywords:
+                filtered_data = data[
+                    data['selftext'].str.contains(query_keywords[0], case=False, na=False) |
+                    data['title'].str.contains(query_keywords[0], case=False, na=False)
+                ]
+        
+        # If still no substantial results, return a message about insufficient data
+        if len(filtered_data) < 3:
+            return jsonify({
+                'response': f"I couldn't find enough data about '{search_query}'. Could you try a different query or broader terms?",
+                'data_points': 0,
+                'suggestions': ['Try a broader topic', 'Check your spelling', 'Use fewer specific terms']
+            })
+        
+        # Gather metrics and insights based on the filtered data
+        metrics = {
+            'total_posts': len(filtered_data),
+            'unique_authors': filtered_data['author'].nunique(),
+            'time_range': {
+                'start': filtered_data['created_utc'].min().isoformat(),
+                'end': filtered_data['created_utc'].max().isoformat()
+            },
+            'top_subreddits': filtered_data['subreddit'].value_counts().head(3).to_dict()
+        }
+        
+        # Add engagement metrics if available
+        if 'num_comments' in filtered_data.columns:
+            metrics['avg_comments'] = float(filtered_data['num_comments'].mean())
+            metrics['max_comments'] = int(filtered_data['num_comments'].max())
+        
+        # Extract top keywords for context
+        try:
+            from sklearn.feature_extraction.text import CountVectorizer
+            text_data = filtered_data['title'] + ' ' + filtered_data['selftext'].fillna('')
+            vectorizer = CountVectorizer(stop_words='english', max_features=10)
+            X = vectorizer.fit_transform(text_data)
+            feature_names = vectorizer.get_feature_names_out()
+            freqs = X.sum(axis=0).A1
+            sorted_indices = freqs.argsort()[::-1]
+            metrics['top_keywords'] = [feature_names[i] for i in sorted_indices[:7]]
+        except Exception as e:
+            print(f"Error extracting keywords: {e}")
+            metrics['top_keywords'] = []
+        
+        # Prepare for trend analysis if needed
+        if intent == "trend":
+            try:
+                # Create a copy of the dataframe to avoid SettingWithCopyWarning
+                trend_df = filtered_data.copy()
+                
+                # Import numpy here to ensure it's available in this scope
+                import numpy as np
+                
+                # Group by date and count posts
+                trend_df['date'] = trend_df['created_utc'].dt.date
+                time_series = trend_df.groupby('date').size()
+                
+                # Find peaks and trends
+                dates = [str(date) for date in time_series.index]
+                counts = time_series.values.tolist()
+                
+                if len(dates) > 0 and len(counts) > 0:
+                    # Add time series data to metrics
+                    metrics['time_series'] = {
+                        'dates': dates,
+                        'counts': counts
+                    }
+                    
+                    # Identify peak date
+                    peak_idx = np.argmax(counts)
+                    metrics['peak_date'] = dates[peak_idx]
+                    metrics['peak_count'] = int(counts[peak_idx])
+                    
+                    # Calculate trend (simple linear regression)
+                    if len(counts) > 3:
+                        from scipy import stats
+                        x = np.arange(len(counts))
+                        slope, _, _, _, _ = stats.linregress(x, counts)
+                        metrics['trend'] = {
+                            'direction': 'increasing' if slope > 0 else 'decreasing',
+                            'magnitude': abs(slope)
+                        }
+            except Exception as e:
+                print(f"Error in trend analysis: {e}")
+        
+        # For topic intent, extract topics
+        if intent == "topic":
+            try:
+                # Use LDA for topic modeling
+                from sklearn.decomposition import LatentDirichletAllocation
+                from sklearn.feature_extraction.text import CountVectorizer
+                
+                # Prepare text data
+                text_data = filtered_data['title'] + ' ' + filtered_data['selftext'].fillna('')
+                
+                # Create document-term matrix
+                vectorizer = CountVectorizer(max_df=0.95, min_df=2, stop_words='english', max_features=1000)
+                X = vectorizer.fit_transform(text_data)
+                
+                # Apply LDA
+                n_topics = min(5, len(filtered_data) // 10) if len(filtered_data) > 50 else 3
+                lda = LatentDirichletAllocation(n_components=n_topics, random_state=42)
+                lda.fit(X)
+                
+                # Get top words for each topic
+                feature_names = vectorizer.get_feature_names_out()
+                topics_data = []
+                
+                for topic_idx, topic in enumerate(lda.components_):
+                    top_words_idx = topic.argsort()[:-11:-1]
+                    top_words = [feature_names[i] for i in top_words_idx]
+                    topics_data.append({
+                        'id': topic_idx,
+                        'words': top_words
+                    })
+                
+                metrics['topics'] = topics_data
+            except Exception as e:
+                print(f"Error in topic analysis: {e}")
+        
+        # For community intent, analyze subreddit distribution
+        if intent == "community":
+            try:
+                communities = filtered_data['subreddit'].value_counts().head(10).to_dict()
+                metrics['communities'] = communities
+                
+                # Calculate diversity metrics
+                total = sum(communities.values())
+                # Shannon entropy as a measure of diversity
+                from math import log2
+                entropy = -sum((count/total) * log2(count/total) for count in communities.values())
+                metrics['community_diversity'] = entropy
+            except Exception as e:
+                print(f"Error in community analysis: {e}")
+        
+        # Generate response using Groq API if available, otherwise use a template-based approach
+        response_text = ""
+        visualization_suggestions = []
+        
+        if has_groq and GROQ_API_KEY:
+            # Build a prompt based on intent and available metrics
+            context_str = f"Query: '{user_query}'\n\nAvailable data about '{search_query}':\n"
+            context_str += f"- {metrics['total_posts']} posts from {metrics['unique_authors']} unique authors\n"
+            context_str += f"- Date range: {metrics['time_range']['start'][:10]} to {metrics['time_range']['end'][:10]}\n"
+            context_str += f"- Top subreddits: {', '.join(list(metrics['top_subreddits'].keys())[:3])}\n"
+            
+            if 'avg_comments' in metrics:
+                context_str += f"- Average engagement: {metrics['avg_comments']:.1f} comments per post\n"
+            
+            if 'top_keywords' in metrics and metrics['top_keywords']:
+                context_str += f"- Key terms: {', '.join(metrics['top_keywords'])}\n"
+            
+            if intent == "trend" and 'time_series' in metrics:
+                # Only add peak information if it exists
+                if 'peak_date' in metrics and 'peak_count' in metrics:
+                    context_str += f"- Peak activity on {metrics['peak_date']} with {metrics['peak_count']} posts\n"
+                if 'trend' in metrics:
+                    context_str += f"- Overall {metrics['trend']['direction']} trend\n"
+            
+            if intent == "topic" and 'topics' in metrics:
+                context_str += "- Main topics discussed:\n"
+                for topic in metrics['topics']:
+                    context_str += f"  * {', '.join(topic['words'][:5])}\n"
+            
+            # Construct the prompt for the LLM
+            prompt = f"""
+            You are a helpful data analyst assistant for Reddit data. Answer the following question based on the data provided:
+            
+            {context_str}
+            
+            Provide a concise, informative response that directly answers the user's question with specific insights from the data.
+            Include 1-3 relevant metrics from the data where appropriate.
+            Keep your response under 120 words.
+            """
+            
+            # Call Groq API
+            groq_api_url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": "llama3-8b-8192",
+                "messages": [
+                    {"role": "system", "content": "You are a data analyst assistant that provides concise, helpful insights from Reddit data."},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.7,
+                "max_tokens": 200
+            }
+            
+            try:
+                response = requests.post(groq_api_url, headers=headers, json=payload)
+                if response.status_code == 200:
+                    result = response.json()
+                    response_text = result["choices"][0]["message"]["content"].strip()
+                else:
+                    # Fallback to template response if API fails
+                    print(f"Groq API error: {response.status_code} - {response.text}")
+                    response_text = generate_template_response(intent, metrics, search_query)
+            except Exception as e:
+                print(f"Error calling Groq API: {e}")
+                response_text = generate_template_response(intent, metrics, search_query)
+        else:
+            # Use template-based response if Groq API is not available
+            response_text = generate_template_response(intent, metrics, search_query)
+        
+        # Add visualization suggestions based on intent and data
+        if intent == "trend":
+            visualization_suggestions.append({
+                'type': 'time_series',
+                'title': 'Time Series Analysis',
+                'description': 'View post frequency over time to see trends and patterns'
+            })
+        
+        if intent == "topic":
+            visualization_suggestions.append({
+                'type': 'topics',
+                'title': 'Topic Analysis',
+                'description': 'Explore the main topics and themes in the data'
+            })
+            visualization_suggestions.append({
+                'type': 'semantic_map',
+                'title': 'Semantic Map', 
+                'description': 'See how posts are related to each other in semantic space'
+            })
+        
+        if intent == "community":
+            visualization_suggestions.append({
+                'type': 'community_distribution',
+                'title': 'Community Distribution',
+                'description': 'See which subreddits are most active for this topic'
+            })
+            visualization_suggestions.append({
+                'type': 'network',
+                'title': 'User Network Analysis',
+                'description': 'Explore connections between users discussing this topic'
+            })
+        
+        # Add a generic visualization suggestion for all intents
+        if len(visualization_suggestions) < 2:
+            visualization_suggestions.append({
+                'type': 'overview',
+                'title': 'Data Overview',
+                'description': 'See a comprehensive summary of all available data'
+            })
+        
+        # Return the response with metrics and visualizations
+        return jsonify({
+            'response': response_text,
+            'metrics': metrics,
+            'data_points': len(filtered_data),
+            'visualization_suggestions': visualization_suggestions,
+            'search_terms': query_keywords,
+            'intent': intent
+        })
+        
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            'error': f'Error processing chatbot query: {str(e)}',
+            'response': 'I encountered an error while processing your question. Please try rephrasing or asking something else.'
+        }), 500
+
+def generate_template_response(intent, metrics, search_query):
+    """Helper function to generate template-based responses when LLM is not available"""
+    if intent == "trend":
+        if 'trend' in metrics:
+            trend_direction = metrics['trend']['direction']
+            peak_date = metrics.get('peak_date', 'the analyzed period')
+            peak_count = metrics.get('peak_count', 'multiple')
+            
+            return f"There is a {trend_direction} trend in discussions about '{search_query}'. The conversation peaked on {peak_date} with {peak_count} posts. Overall, I found {metrics['total_posts']} posts from {metrics['unique_authors']} unique authors across {len(metrics['top_subreddits'])} subreddits."
+        else:
+            return f"I analyzed {metrics['total_posts']} posts about '{search_query}' from {metrics['time_range']['start'][:10]} to {metrics['time_range']['end'][:10]}. These posts came from {metrics['unique_authors']} unique authors across subreddits like {', '.join(list(metrics['top_subreddits'].keys())[:2])}."
+    
+    elif intent == "topic":
+        if 'topics' in metrics and metrics['topics']:
+            topics_text = []
+            for topic in metrics['topics'][:2]:
+                topics_text.append(f"{', '.join(topic['words'][:5])}")
+            
+            return f"The main topics related to '{search_query}' include: {'; '.join(topics_text)}. These themes appeared across {metrics['total_posts']} posts from {metrics['unique_authors']} authors."
+        else:
+            return f"I found {metrics['total_posts']} posts about '{search_query}'. Key terms include {', '.join(metrics.get('top_keywords', [])[:5])}."
+    
+    elif intent == "community":
+        if 'communities' in metrics:
+            top_communities = list(metrics['communities'].keys())[:3]
+            return f"The main communities discussing '{search_query}' are: {', '.join(top_communities)}. I analyzed {metrics['total_posts']} posts from {metrics['unique_authors']} unique authors."
+        else:
+            return f"Discussions about '{search_query}' happen primarily in {', '.join(list(metrics['top_subreddits'].keys())[:3])}. I found {metrics['total_posts']} posts from {metrics['unique_authors']} authors."
+    
+    # Default/general response
+    return f"I analyzed {metrics['total_posts']} posts about '{search_query}' from {metrics['unique_authors']} authors. Key terms include {', '.join(metrics.get('top_keywords', [])[:5])}{'. Most discussions occurred in ' + ', '.join(list(metrics['top_subreddits'].keys())[:2]) if metrics['top_subreddits'] else ''}."
 
 if __name__ == '__main__':
     # Load dataset on startup

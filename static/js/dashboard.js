@@ -1256,7 +1256,7 @@ async function updateNetwork(query) {
                     const nodeColor = color(node.group || 0);
                     context.fillStyle = nodeColor;
                 } else {
-                    context.fillStyle = color(node.group || 0);
+                context.fillStyle = color(node.group || 0);
                 }
                 
                 context.fill();
@@ -3789,6 +3789,9 @@ async function handleAnalyzeClick() {
         document.getElementById('timeseries-chart').innerHTML = '';
         document.getElementById('ai-summary').innerHTML = '';
         document.getElementById('topic-evolution-chart').innerHTML = '';
+        document.getElementById('semantic-map-container').innerHTML = '';
+        document.getElementById('point-details').innerHTML = '<p class="text-muted">Click on a point to see details</p>';
+        document.getElementById('topic-clusters').innerHTML = '<p class="text-muted">Loading topic clusters...</p>';
         
         // Reset data story with placeholder
         document.getElementById('data-story').innerHTML = `
@@ -3844,6 +3847,7 @@ async function handleAnalyzeClick() {
         document.getElementById('topics-container').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading topic analysis...</div>';
         document.getElementById('coordinated-graph').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading coordinated behavior analysis...</div>';
         document.getElementById('coordinated-groups').innerHTML = '';
+        document.getElementById('semantic-map-container').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading semantic map analysis...</div>';
         
         // Phase 2: Load the data story and time series (medium weight)
         // Generate a data story based on the analyzed results
@@ -3861,6 +3865,12 @@ async function handleAnalyzeClick() {
                 await updateTopicEvolution(query).catch(error => {
                     console.error('Error updating topic evolution:', error);
                     document.getElementById('topic-evolution-chart').innerHTML = '<p class="text-danger">Error loading topic evolution data</p>';
+                });
+                
+                // Update semantic map
+                await updateSemanticMap(query).catch(error => {
+                    console.error('Error updating semantic map:', error);
+                    document.getElementById('semantic-map-container').innerHTML = '<p class="text-danger">Error loading semantic map data</p>';
                 });
                 
                 // Update timeseries description after data is loaded
@@ -3929,3 +3939,719 @@ async function handleAnalyzeClick() {
         showLoading(false);
     }
 }
+
+// Function to update the semantic map
+async function updateSemanticMap(query) {
+    try {
+        // Show loading indicator
+        document.getElementById('semantic-map-container').innerHTML = `
+            <div class="section-loading">
+                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                Loading semantic map...
+            </div>
+        `;
+        document.getElementById('topic-clusters').innerHTML = `
+            <div class="section-loading">
+                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                Loading topic clusters...
+            </div>
+        `;
+        
+        // Get parameters from UI controls
+        const maxPoints = document.getElementById('max-points-slider').value;
+        const nNeighbors = document.getElementById('n-neighbors-slider').value;
+        const minDist = document.getElementById('min-dist-slider').value;
+        
+        // Build the URL with parameters
+        let url = `/api/semantic_map?query=${encodeURIComponent(query)}&max_points=${maxPoints}&n_neighbors=${nNeighbors}&min_dist=${minDist}`;
+        
+        // Add date filters if available
+        if (startDate && endDate) {
+            url += `&start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`;
+        }
+        
+        // Fetch semantic map data
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        // Check if we have valid data
+        if (!data.points || data.points.length === 0) {
+            document.getElementById('semantic-map-container').innerHTML = `
+                <div class="alert alert-warning">
+                    No data points available for the current query.
+                </div>
+            `;
+            return;
+        }
+        
+        // Update stats display
+        document.getElementById('semantic-map-stats').innerHTML = `
+            <strong>${data.total_posts}</strong> posts visualized | 
+            <strong>${data.topics.length}</strong> topic clusters | 
+            UMAP settings: neighbors=${data.umap_params.n_neighbors}, min_dist=${data.umap_params.min_dist}
+        `;
+        
+        // Visualize the data
+        renderSemanticMap(data);
+        
+        // Update the clusters sidebar
+        updateTopicClusters(data.topics);
+        
+        // Update section description
+        updateSectionDescription('semantic_map', '#semantic-map-description', {
+            pointCount: data.total_posts,
+            topicCount: data.topics.length,
+            parameters: data.umap_params
+        });
+        
+    } catch (error) {
+        console.error('Error updating semantic map:', error);
+        document.getElementById('semantic-map-container').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> Error loading semantic map: ${error.message}
+            </div>
+        `;
+    }
+}
+
+// Function to render the semantic map visualization
+function renderSemanticMap(data) {
+    // Clear previous visualization
+    document.getElementById('semantic-map-container').innerHTML = '';
+    
+    // Set up dimensions
+    const container = document.getElementById('semantic-map-container');
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    const margin = {top: 10, right: 30, bottom: 30, left: 40};
+    
+    // Create SVG
+    const svg = d3.select('#semantic-map-container').append('svg')
+        .attr('width', width)
+        .attr('height', height);
+        
+    // Create a group for zoom/pan transform
+    const g = svg.append('g');
+    
+    // Add zoom behavior
+    const zoom = d3.zoom()
+        .scaleExtent([0.1, 8])
+        .on('zoom', (event) => {
+            g.attr('transform', event.transform);
+        });
+    
+    svg.call(zoom);
+    
+    // Compute the data boundaries
+    const xExtent = d3.extent(data.points, d => d.x);
+    const yExtent = d3.extent(data.points, d => d.y);
+    
+    // Add some padding to the extents
+    const xPadding = (xExtent[1] - xExtent[0]) * 0.05;
+    const yPadding = (yExtent[1] - yExtent[0]) * 0.05;
+    
+    // Create scales
+    const xScale = d3.scaleLinear()
+        .domain([xExtent[0] - xPadding, xExtent[1] + xPadding])
+        .range([margin.left, width - margin.right]);
+        
+    const yScale = d3.scaleLinear()
+        .domain([yExtent[0] - yPadding, yExtent[1] + yPadding])
+        .range([height - margin.bottom, margin.top]);
+    
+    // Create a color scale for clusters
+    const showClusters = document.getElementById('show-clusters').checked;
+    const clusterColorScale = d3.scaleOrdinal(d3.schemeCategory10)
+        .domain(data.topics.map(t => t.id));
+    
+    // Create points
+    g.selectAll('circle')
+        .data(data.points)
+        .enter()
+        .append('circle')
+        .attr('cx', d => xScale(d.x))
+        .attr('cy', d => yScale(d.y))
+        .attr('r', 5)
+        .attr('fill', d => showClusters ? clusterColorScale(d.cluster) : '#4a6fa5')
+        .attr('opacity', 0.7)
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 0.5)
+        .attr('cursor', 'pointer')
+        .on('mouseover', function(event, d) {
+            // Highlight point
+            d3.select(this)
+                .attr('r', 8)
+                .attr('stroke-width', 1.5);
+                
+            // Show tooltip
+            const tooltip = d3.select('#semantic-map-container')
+                .append('div')
+                .attr('class', 'semantic-tooltip')
+                .style('position', 'absolute')
+                .style('background', 'white')
+                .style('border', '1px solid #ddd')
+                .style('border-radius', '4px')
+                .style('padding', '10px')
+                .style('box-shadow', '0 2px 5px rgba(0,0,0,0.1)')
+                .style('pointer-events', 'none')
+                .style('left', `${event.pageX + 10}px`)
+                .style('top', `${event.pageY + 10}px`)
+                .style('z-index', 1000);
+                
+            tooltip.html(`
+                <strong>${d.title}</strong><br>
+                <span class="small text-muted">r/${d.subreddit} - ${d.author}</span><br>
+                <span class="small">${new Date(d.created_utc).toLocaleDateString()}</span>
+            `);
+        })
+        .on('mouseout', function() {
+            // Reset point size
+            d3.select(this)
+                .attr('r', 5)
+                .attr('stroke-width', 0.5);
+                
+            // Remove tooltip
+            d3.select('.semantic-tooltip').remove();
+        })
+        .on('click', (event, d) => {
+            showPointDetails(d);
+        });
+    
+    // Show cluster topic labels if enabled
+    if (document.getElementById('show-topic-labels').checked) {
+        g.selectAll('text')
+            .data(data.topics)
+            .enter()
+            .append('text')
+            .attr('x', d => xScale(d.center_x))
+            .attr('y', d => yScale(d.center_y))
+            .attr('text-anchor', 'middle')
+            .attr('font-size', d => Math.min(14, 10 + Math.sqrt(d.size/10)))
+            .attr('font-weight', 'bold')
+            .attr('pointer-events', 'none')
+            .attr('fill', d => showClusters ? clusterColorScale(d.id) : '#333')
+            .text(d => d.terms.slice(-3).join(' | '));
+    }
+    
+    // Draw convex hulls around clusters if enabled
+    if (document.getElementById('show-hulls').checked && showClusters) {
+        // Group points by cluster
+        const clusterGroups = {};
+        data.points.forEach(p => {
+            if (!clusterGroups[p.cluster]) {
+                clusterGroups[p.cluster] = [];
+            }
+            clusterGroups[p.cluster].push([xScale(p.x), yScale(p.y)]);
+        });
+        
+        // Draw hulls for each cluster
+        Object.entries(clusterGroups).forEach(([clusterId, points]) => {
+            if (points.length < 3) return; // Need at least 3 points for a hull
+            
+            try {
+                // Compute hull points
+                const hull = d3.polygonHull(points);
+                
+                if (!hull) return;
+                
+                // Create hull path
+                const hullPath = 'M' + hull.join('L') + 'Z';
+                
+                // Add hull to the visualization
+                g.append('path')
+                    .attr('d', hullPath)
+                    .attr('fill', clusterColorScale(clusterId))
+                    .attr('stroke', clusterColorScale(clusterId))
+                    .attr('stroke-width', 1)
+                    .attr('fill-opacity', 0.1)
+                    .attr('stroke-opacity', 0.3);
+            } catch (e) {
+                console.warn('Could not create hull for cluster', clusterId, e);
+            }
+        });
+    }
+    
+    // Add initial zoom to fit all points
+    svg.call(zoom.transform, d3.zoomIdentity
+        .translate(width/2, height/2)
+        .scale(0.85)
+        .translate(-width/2, -height/2));
+}
+
+// Function to update the topic clusters sidebar
+function updateTopicClusters(topics) {
+    // Clear existing content
+    const clusterContainer = document.getElementById('topic-clusters');
+    clusterContainer.innerHTML = '';
+    
+    if (!topics || topics.length === 0) {
+        clusterContainer.innerHTML = `<p class="text-muted">No topic clusters identified.</p>`;
+        return;
+    }
+    
+    // Sort topics by size (descending)
+    const sortedTopics = [...topics].sort((a, b) => b.size - a.size);
+    
+    // Create a list of topic clusters
+    const topicList = document.createElement('div');
+    topicList.className = 'list-group';
+    
+    sortedTopics.forEach(topic => {
+        const topicItem = document.createElement('div');
+        topicItem.className = 'list-group-item list-group-item-action';
+        
+        const badge = `<span class="badge bg-primary float-end">${topic.size}</span>`;
+        const terms = topic.terms.join(', ');
+        
+        topicItem.innerHTML = `
+            <div class="d-flex w-100 justify-content-between">
+                <h6 class="mb-1">Cluster ${topic.id + 1}</h6>
+                ${badge}
+            </div>
+            <p class="mb-1 small">${terms}</p>
+        `;
+        
+        topicList.appendChild(topicItem);
+    });
+    
+    clusterContainer.appendChild(topicList);
+}
+
+// Function to show detailed information about a clicked point
+function showPointDetails(point) {
+    const detailsContainer = document.getElementById('point-details');
+    
+    const date = new Date(point.created_utc).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+    
+    detailsContainer.innerHTML = `
+        <h6>${point.title}</h6>
+        <div class="mb-2">
+            <span class="badge bg-secondary">r/${point.subreddit}</span>
+            <span class="badge bg-light text-dark">u/${point.author}</span>
+            <span class="badge bg-light text-dark">${date}</span>
+        </div>
+        <p class="small">${point.preview_text}</p>
+        <div class="d-flex">
+            <div class="me-3">
+                <i class="bi bi-chat-dots"></i> ${point.num_comments} comments
+            </div>
+            <div>
+                <i class="bi bi-arrow-up-circle"></i> ${point.score} score
+            </div>
+        </div>
+    `;
+}
+
+// Set up event handlers for semantic map controls
+document.addEventListener('DOMContentLoaded', function() {
+    // Set up analyze button click handler
+    document.getElementById('analyze-btn').addEventListener('click', handleAnalyzeClick);
+    
+    // Set up semantic map update button handler
+    const updateBtn = document.getElementById('update-semantic-map-btn');
+    if (updateBtn) {
+        updateBtn.addEventListener('click', function() {
+            if (!activeQuery) {
+                alert('Please run a query first');
+                return;
+            }
+            updateSemanticMap(activeQuery);
+        });
+    }
+    
+    // Update parameter value displays
+    const maxPointsSlider = document.getElementById('max-points-slider');
+    const nNeighborsSlider = document.getElementById('n-neighbors-slider');
+    const minDistSlider = document.getElementById('min-dist-slider');
+    
+    if (maxPointsSlider) {
+        maxPointsSlider.addEventListener('input', function() {
+            document.getElementById('max-points-value').textContent = this.value;
+        });
+    }
+    
+    if (nNeighborsSlider) {
+        nNeighborsSlider.addEventListener('input', function() {
+            document.getElementById('n-neighbors-value').textContent = this.value;
+        });
+    }
+    
+    if (minDistSlider) {
+        minDistSlider.addEventListener('input', function() {
+            document.getElementById('min-dist-value').textContent = this.value;
+        });
+    }
+    
+    // Real-time display toggles
+    const displayOptions = ['show-topic-labels', 'show-clusters', 'show-hulls'];
+    displayOptions.forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox) {
+            checkbox.addEventListener('change', function() {
+                // Only update if we have already performed analysis
+                if (analysisPerformed && activeQuery) {
+                    updateSemanticMap(activeQuery);
+                }
+            });
+        }
+    });
+    
+    // Set up chatbot interactions
+    setupChatbotInteractions();
+});
+
+// Chatbot functionality
+let chatHistory = [];
+
+function setupChatbotInteractions() {
+    const chatInput = document.getElementById('chat-input');
+    const sendButton = document.getElementById('send-chat-btn');
+    
+    // Send message on button click
+    if (sendButton) {
+        sendButton.addEventListener('click', function() {
+            sendChatMessage();
+        });
+    }
+    
+    // Send message on Enter key
+    if (chatInput) {
+        chatInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendChatMessage();
+            }
+        });
+    }
+}
+
+function sendChatMessage() {
+    const chatInput = document.getElementById('chat-input');
+    const userQuery = chatInput.value.trim();
+    
+    if (!userQuery) return; // Don't send empty messages
+    
+    // Clear input field
+    chatInput.value = '';
+    
+    // Add user message to chat
+    addMessageToChat('user', userQuery);
+    
+    // Show typing indicator
+    showTypingIndicator();
+    
+    // Add message to history
+    chatHistory.push({ role: 'user', content: userQuery });
+    
+    // Send message to API
+    processChatMessage(userQuery);
+}
+
+function addMessageToChat(role, content, time = null) {
+    const chatMessages = document.getElementById('chat-messages');
+    const messageDiv = document.createElement('div');
+    
+    // Set class based on message role
+    messageDiv.className = role === 'user' ? 'user-message' : 
+                          (role === 'system' ? 'system-message' : 'assistant-message');
+    
+    // Create message content
+    const contentP = document.createElement('div');
+    contentP.className = 'message-content';
+    contentP.innerHTML = content;
+    messageDiv.appendChild(contentP);
+    
+    // Add timestamp if provided
+    if (time) {
+        const timeSpan = document.createElement('div');
+        timeSpan.className = 'message-time';
+        timeSpan.textContent = time;
+        messageDiv.appendChild(timeSpan);
+    }
+    
+    // Add message to chat
+    chatMessages.appendChild(messageDiv);
+    
+    // Scroll to bottom
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function showTypingIndicator() {
+    const chatMessages = document.getElementById('chat-messages');
+    const indicatorDiv = document.createElement('div');
+    indicatorDiv.className = 'typing-indicator';
+    indicatorDiv.id = 'typing-indicator';
+    
+    // Add three dots
+    for (let i = 0; i < 3; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        indicatorDiv.appendChild(dot);
+    }
+    
+    chatMessages.appendChild(indicatorDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function hideTypingIndicator() {
+    const indicator = document.getElementById('typing-indicator');
+    if (indicator) {
+        indicator.remove();
+    }
+}
+
+function processChatMessage(query) {
+    // Hide previous suggestions and metrics
+    document.getElementById('viz-suggestions').style.display = 'none';
+    document.getElementById('related-metrics').style.display = 'none';
+    
+    // Call API to process the message
+    fetch('/api/chatbot', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            query: query,
+            history: chatHistory.slice(-5) // Send last 5 messages for context
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Server returned ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Hide typing indicator
+        hideTypingIndicator();
+        
+        // Add AI response to chat
+        addMessageToChat('assistant', data.response);
+        
+        // Add to chat history
+        chatHistory.push({ role: 'assistant', content: data.response });
+        
+        // Display visualization suggestions if any
+        if (data.visualization_suggestions && data.visualization_suggestions.length > 0) {
+            displayVisualizationSuggestions(data.visualization_suggestions);
+        }
+        
+        // Display metrics if any
+        if (data.metrics) {
+            displayRelatedMetrics(data.metrics);
+        }
+    })
+    .catch(error => {
+        // Hide typing indicator
+        hideTypingIndicator();
+        
+        // Add error message
+        addMessageToChat('assistant', `I'm sorry, I couldn't process your request: ${error.message}`);
+        
+        console.error('Error processing chat message:', error);
+    });
+}
+
+function displayVisualizationSuggestions(suggestions) {
+    const container = document.getElementById('viz-suggestions-content');
+    container.innerHTML = '';
+    
+    suggestions.forEach(suggestion => {
+        const col = document.createElement('div');
+        col.className = 'col-md-6 col-lg-4';
+        
+        const card = document.createElement('div');
+        card.className = 'card suggestion-card h-100';
+        card.style.cursor = 'pointer';
+        card.addEventListener('click', () => {
+            // Switch to relevant tab based on suggestion type
+            switch(suggestion.type) {
+                case 'time_series':
+                    document.getElementById('timeseries-tab').click();
+                    break;
+                case 'topics':
+                    document.getElementById('topics-tab').click();
+                    break;
+                case 'network':
+                    document.getElementById('network-tab').click();
+                    break;
+                case 'semantic_map':
+                    document.getElementById('semantic-map-tab').click();
+                    break;
+                case 'community_distribution':
+                    document.getElementById('network-tab').click(); // This is on the network tab
+                    break;
+                case 'coordinated':
+                    document.getElementById('coordinated-tab').click();
+                    break;
+                default:
+                    document.getElementById('overview-tab').click();
+                    break;
+            }
+        });
+        
+        // Get appropriate icon for visualization type
+        let icon = 'graph-up';
+        switch(suggestion.type) {
+            case 'time_series': icon = 'graph-up'; break;
+            case 'topics': icon = 'chat-square-text'; break;
+            case 'network': icon = 'diagram-3'; break;
+            case 'semantic_map': icon = 'map'; break;
+            case 'community_distribution': icon = 'pie-chart'; break;
+            case 'coordinated': icon = 'people'; break;
+            case 'overview': icon = 'list-ul'; break;
+        }
+        
+        card.innerHTML = `
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-${icon}"></i> ${suggestion.title}</h5>
+                <p class="card-text small">${suggestion.description}</p>
+            </div>
+            <div class="card-footer bg-transparent text-end">
+                <small class="text-muted">Click to view</small>
+            </div>
+        `;
+        
+        col.appendChild(card);
+        container.appendChild(col);
+    });
+    
+    // Show the container
+    document.getElementById('viz-suggestions').style.display = 'block';
+}
+
+function displayRelatedMetrics(metrics) {
+    const container = document.getElementById('metrics-content');
+    container.innerHTML = '';
+    
+    // Define the metrics to show and their formats
+    const metricsToShow = [
+        { key: 'total_posts', label: 'Total Posts', format: value => value.toLocaleString() },
+        { key: 'unique_authors', label: 'Unique Authors', format: value => value.toLocaleString() },
+        { key: 'avg_comments', label: 'Avg. Comments', format: value => value.toFixed(1) }
+    ];
+    
+    // Add time range if available
+    if (metrics.time_range) {
+        const startDate = new Date(metrics.time_range.start).toLocaleDateString();
+        const endDate = new Date(metrics.time_range.end).toLocaleDateString();
+        
+        const col = document.createElement('div');
+        col.className = 'col-12';
+        col.innerHTML = `
+            <div class="alert alert-light">
+                <small class="fw-medium">Data Range: ${startDate} to ${endDate}</small>
+            </div>
+        `;
+        container.appendChild(col);
+    }
+    
+    // Add standard metrics
+    metricsToShow.forEach(metricDef => {
+        if (metrics[metricDef.key] !== undefined) {
+            const col = document.createElement('div');
+            col.className = 'col-md-4';
+            
+            col.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${metricDef.format(metrics[metricDef.key])}</div>
+                    <div class="stat-label">${metricDef.label}</div>
+                </div>
+            `;
+            
+            container.appendChild(col);
+        }
+    });
+    
+    // Add peak date if available (for trend analysis)
+    if (metrics.peak_date) {
+        const col = document.createElement('div');
+        col.className = 'col-md-4';
+        
+        col.innerHTML = `
+            <div class="stat-card">
+                <div class="stat-value">${metrics.peak_date}</div>
+                <div class="stat-label">Peak Activity</div>
+            </div>
+        `;
+        
+        container.appendChild(col);
+    }
+    
+    // Add trend direction if available
+    if (metrics.trend && metrics.trend.direction) {
+        const col = document.createElement('div');
+        col.className = 'col-md-4';
+        
+        const icon = metrics.trend.direction === 'increasing' ? 
+            '<i class="bi bi-arrow-up-right text-success"></i>' : 
+            '<i class="bi bi-arrow-down-right text-danger"></i>';
+        
+        col.innerHTML = `
+            <div class="stat-card">
+                <div class="stat-value">${icon} ${metrics.trend.direction.charAt(0).toUpperCase() + metrics.trend.direction.slice(1)}</div>
+                <div class="stat-label">Overall Trend</div>
+            </div>
+        `;
+        
+        container.appendChild(col);
+    }
+    
+    // Show top subreddits if available
+    if (metrics.top_subreddits) {
+        const col = document.createElement('div');
+        col.className = 'col-12 mt-3';
+        
+        const subreddits = Object.entries(metrics.top_subreddits)
+            .slice(0, 3)
+            .map(([name, count]) => `<span class="badge bg-light text-dark">r/${name} (${count})</span>`)
+            .join(' ');
+        
+        col.innerHTML = `
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">Top Subreddits</h6>
+                    <div>${subreddits}</div>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(col);
+    }
+    
+    // Show top keywords if available
+    if (metrics.top_keywords && metrics.top_keywords.length > 0) {
+        const col = document.createElement('div');
+        col.className = 'col-12 mt-3';
+        
+        const keywords = metrics.top_keywords
+            .slice(0, 5)
+            .map(word => `<span class="badge bg-light text-dark">${word}</span>`)
+            .join(' ');
+        
+        col.innerHTML = `
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">Key Terms</h6>
+                    <div>${keywords}</div>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(col);
+    }
+    
+    // Show the container
+    document.getElementById('related-metrics').style.display = 'block';
+}
+
+// ... existing code ...

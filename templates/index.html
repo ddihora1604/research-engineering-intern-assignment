@@ -415,6 +415,49 @@
         .timeline-body {
             background-color: var(--primary-light) !important;
         }
+        
+        /* Semantic Map Specific Styles */
+        .semantic-tooltip {
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 300px;
+            font-size: 0.9rem;
+        }
+        
+        #semantic-map-container {
+            position: relative;
+            background-color: #fafafa;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        #semantic-map-container svg {
+            cursor: grab;
+        }
+        
+        #semantic-map-container svg:active {
+            cursor: grabbing;
+        }
+        
+        #topic-clusters .list-group-item {
+            padding: 0.75rem;
+            transition: background-color 0.2s;
+        }
+        
+        #topic-clusters .list-group-item:hover {
+            background-color: var(--primary-light);
+        }
+        
+        #point-details {
+            max-height: 250px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
@@ -463,36 +506,32 @@
         <!-- Analytics Tabs -->
         <ul class="nav nav-tabs" id="analyticsTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
-                    <i class="bi bi-house"></i> Overview
-                </button>
+                <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview-panel" type="button" role="tab" aria-controls="overview-panel" aria-selected="true">Overview</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="timeseries-tab" data-bs-toggle="tab" data-bs-target="#timeseries-panel" type="button" role="tab">
-                    <i class="bi bi-graph-up"></i> Time Series
-                </button>
+                <button class="nav-link" id="timeseries-tab" data-bs-toggle="tab" data-bs-target="#timeseries-panel" type="button" role="tab" aria-controls="timeseries-panel" aria-selected="false">Time Series</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="network-tab" data-bs-toggle="tab" data-bs-target="#network-panel" type="button" role="tab">
-                    <i class="bi bi-diagram-3"></i> Network Analysis
-                </button>
+                <button class="nav-link" id="network-tab" data-bs-toggle="tab" data-bs-target="#network-panel" type="button" role="tab" aria-controls="network-panel" aria-selected="false">Network</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="topics-tab" data-bs-toggle="tab" data-bs-target="#topics-panel" type="button" role="tab">
-                    <i class="bi bi-chat-square-text"></i> Topic Analysis
-                </button>
+                <button class="nav-link" id="topics-tab" data-bs-toggle="tab" data-bs-target="#topics-panel" type="button" role="tab" aria-controls="topics-panel" aria-selected="false">Topics</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="coordinated-tab" data-bs-toggle="tab" data-bs-target="#coordinated-panel" type="button" role="tab">
-                    <i class="bi bi-people"></i> Coordinated Behavior
-                </button>
+                <button class="nav-link" id="semantic-map-tab" data-bs-toggle="tab" data-bs-target="#semantic-map-panel" type="button" role="tab" aria-controls="semantic-map-panel" aria-selected="false">Semantic Map</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="coordinated-tab" data-bs-toggle="tab" data-bs-target="#coordinated-panel" type="button" role="tab" aria-controls="coordinated-panel" aria-selected="false">Coordinated Behavior</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="chatbot-tab" data-bs-toggle="tab" data-bs-target="#chatbot-panel" type="button" role="tab" aria-controls="chatbot-panel" aria-selected="false">Ask the Data</button>
             </li>
         </ul>
 
         <!-- Tab Content -->
         <div class="tab-content" id="analyticsTabContent">
             <!-- Overview Tab -->
-            <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab">
+            <div class="tab-pane fade show active" id="overview-panel" role="tabpanel" aria-labelledby="overview-tab">
                 <div class="row">
                     <!-- AI Summary Section -->
                     <div class="col-md-8">
@@ -609,7 +648,7 @@
             <div class="tab-pane fade" id="network-panel" role="tabpanel" aria-labelledby="network-tab">
                 <div class="row">
                     <div class="col-md-8">
-                        <div class="chart-container">
+                <div class="chart-container">
                             <h3><i class="bi bi-diagram-3"></i> Network Analysis</h3>
                             <div class="alert alert-info mb-3" id="network-description">
                                 <i class="bi bi-info-circle"></i> Loading network analysis insights for your query...
@@ -687,7 +726,7 @@
                             <div class="mt-3 mb-4" id="network-metrics"></div>
                             
                             <div id="network-graph-container" class="position-relative">
-                                <div id="network-graph"></div>
+                    <div id="network-graph"></div>
                             </div>
                             
                             <div class="mt-3">
@@ -742,6 +781,124 @@
                 </div>
             </div>
 
+            <!-- Semantic Map Tab -->
+            <div class="tab-pane fade" id="semantic-map-panel" role="tabpanel" aria-labelledby="semantic-map-tab">
+                <div class="chart-container">
+                    <h3><i class="bi bi-map"></i> Semantic Topic Map</h3>
+                    <div class="alert alert-info mb-3" id="semantic-map-description">
+                        <i class="bi bi-info-circle"></i> Loading semantic map insights for your query...
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">Map Parameters</h5>
+                                    <div class="mb-3">
+                                        <label for="max-points-slider" class="form-label">Maximum Points: <span id="max-points-value">500</span></label>
+                                        <input type="range" class="form-range" id="max-points-slider" min="100" max="1000" step="100" value="500">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="n-neighbors-slider" class="form-label">Neighbor Sensitivity: <span id="n-neighbors-value">15</span></label>
+                                        <input type="range" class="form-range" id="n-neighbors-slider" min="5" max="50" step="5" value="15">
+                                        <small class="form-text text-muted">Higher values create more global structure</small>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="min-dist-slider" class="form-label">Clustering Tightness: <span id="min-dist-value">0.1</span></label>
+                                        <input type="range" class="form-range" id="min-dist-slider" min="0.01" max="0.5" step="0.01" value="0.1">
+                                        <small class="form-text text-muted">Lower values create tighter clusters</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">Display Options</h5>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="show-topic-labels" checked>
+                                        <label class="form-check-label" for="show-topic-labels">
+                                            Show topic labels
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="show-clusters" checked>
+                                        <label class="form-check-label" for="show-clusters">
+                                            Color by cluster
+                                        </label>
+                                    </div>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="show-hulls">
+                                        <label class="form-check-label" for="show-hulls">
+                                            Show cluster boundaries
+                                        </label>
+                                    </div>
+                                    <button id="update-semantic-map-btn" class="btn btn-primary mt-3">
+                                        <i class="bi bi-arrow-repeat"></i> Update Map
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="card mb-4">
+                                <div class="card-body">
+                                    <div id="semantic-map-stats" class="small text-muted mb-2"></div>
+                                    <div id="semantic-map-container" style="height: 600px; width: 100%;">
+                                        <div class="section-loading">
+                                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                            Loading semantic map...
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Point Details</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="point-details">
+                                        <p class="text-muted">Click on a point to see details</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Topic Clusters</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="topic-clusters">
+                                        <p class="text-muted">Loading topic clusters...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5><i class="bi bi-info-circle"></i> How to Use</h5>
+                                <ul>
+                                    <li>Each point represents a post in the semantic space, positioned by similarity of content</li>
+                                    <li>Points that are closer together cover similar topics or themes</li>
+                                    <li>Clusters represent distinct topic areas within the data</li>
+                                    <li>Click on points to see the full content and details</li>
+                                    <li>Adjust visualization parameters to explore different perspectives on the data</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Coordinated Behavior Tab -->
             <div class="tab-pane fade" id="coordinated-panel" role="tabpanel" aria-labelledby="coordinated-tab">
                 <div class="row">
@@ -793,8 +950,159 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Chatbot Tab -->
+            <div class="tab-pane fade" id="chatbot-panel" role="tabpanel" aria-labelledby="chatbot-tab">
+                <div class="chart-container">
+                    <h3><i class="bi bi-chat-dots"></i> Interactive Data Assistant</h3>
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle"></i> Ask questions about the dataset to get real-time insights. Try questions about trends, topics, communities, or specific themes.
+                    </div>
+                    
+                    <!-- Chat Messages Area -->
+                    <div id="chat-messages" style="height: 400px; overflow-y: auto; border: 1px solid var(--neutral-color); border-radius: 8px; padding: 16px; margin-bottom: 16px; background-color: var(--light-color);">
+                        <div class="system-message">
+                            <div class="message-content">
+                                <p>Hello! I'm your data assistant. Ask me anything about the Reddit dataset and I'll provide insights based on data analysis.</p>
+                                <p class="small text-muted">Try questions like:</p>
+                                <ul class="small text-muted">
+                                    <li>"What are the main topics people discuss about climate change?"</li>
+                                    <li>"How did conversations about COVID vaccines trend over time?"</li>
+                                    <li>"Which communities talk most about cryptocurrency?"</li>
+                                    <li>"What themes are popular in discussions about AI?"</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Chat Input Area -->
+                    <div class="chat-input-area">
+                        <div class="row">
+                            <div class="col">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="chat-input" placeholder="Ask a question about the dataset...">
+                                    <button class="btn btn-primary" id="send-chat-btn">
+                                        <i class="bi bi-send"></i> Send
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Visualization Suggestions -->
+                    <div id="viz-suggestions" class="mt-4" style="display: none;">
+                        <h5 class="mb-3">Suggested Visualizations</h5>
+                        <div id="viz-suggestions-content" class="row g-3">
+                            <!-- Will be filled dynamically -->
+                        </div>
+                    </div>
+                    
+                    <!-- Related Metrics -->
+                    <div id="related-metrics" class="mt-4" style="display: none;">
+                        <h5 class="mb-3">Key Metrics</h5>
+                        <div id="metrics-content" class="row g-3">
+                            <!-- Will be filled dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+
+    <!-- Add styles for chat messages -->
+    <style>
+        /* Chat Message Styles */
+        #chat-messages {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .user-message, .assistant-message, .system-message {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 4px;
+        }
+        
+        .user-message {
+            background-color: var(--primary-light);
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .assistant-message {
+            background-color: white;
+            border: 1px solid var(--neutral-color);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .system-message {
+            background-color: var(--light-color);
+            border: 1px dashed var(--neutral-color);
+            align-self: center;
+            width: 100%;
+        }
+        
+        .message-content {
+            margin-bottom: 0;
+        }
+        
+        .message-time {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            text-align: right;
+        }
+        
+        .suggestion-card {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .suggestion-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--hover-shadow);
+        }
+        
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            background-color: white;
+            border: 1px solid var(--neutral-color);
+            border-radius: 12px;
+            border-bottom-left-radius: 4px;
+            padding: 12px 16px;
+            width: fit-content;
+            align-self: flex-start;
+        }
+        
+        .typing-indicator .dot {
+            height: 8px;
+            width: 8px;
+            border-radius: 50%;
+            background-color: var(--text-secondary);
+            margin: 0 2px;
+            animation: typing 1.4s infinite;
+            opacity: 0.7;
+        }
+        
+        .typing-indicator .dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-indicator .dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typing {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+            100% { transform: translateY(0); }
+        }
+    </style>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
