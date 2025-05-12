@@ -18,6 +18,227 @@ import umap.umap_ as umap
 from sentence_transformers import SentenceTransformer
 import traceback
 import math
+import glob
+
+# Data connector framework for multiple platforms
+class SocialMediaConnector:
+    """Base class for social media platform data connectors."""
+    
+    def __init__(self, platform_name):
+        self.platform_name = platform_name
+        self.data = None
+    
+    def load_data(self, source_path):
+        """Load data from the source path."""
+        raise NotImplementedError("Subclasses must implement this method")
+    
+    def normalize_data(self):
+        """Normalize data to a standard format."""
+        raise NotImplementedError("Subclasses must implement this method")
+    
+    def get_data(self):
+        """Return the normalized data."""
+        return self.data
+
+class RedditConnector(SocialMediaConnector):
+    """Connector for Reddit data in JSONL format."""
+    
+    def __init__(self):
+        super().__init__("reddit")
+    
+    def load_data(self, source_path):
+        """Load Reddit data from JSONL file."""
+        try:
+            if os.path.exists(source_path):
+                # Read JSONL file
+                self.data = pd.read_json(source_path, lines=True)
+                print(f"Loaded {len(self.data)} rows from Reddit data source: {source_path}")
+                return True
+            else:
+                print(f"Reddit data file not found at {source_path}")
+                return False
+        except Exception as e:
+            print(f"Error loading Reddit data: {str(e)}")
+            return False
+    
+    def normalize_data(self):
+        """Normalize Reddit data to standard format."""
+        if self.data is None:
+            return False
+        
+        try:
+            # Normalize the nested JSON structure
+            self.data = pd.json_normalize(self.data['data'])
+            
+            # Convert created_utc to datetime
+            self.data['created_utc'] = pd.to_datetime(self.data['created_utc'], unit='s')
+            
+            # Add platform identifier
+            self.data['platform'] = 'reddit'
+            
+            # Ensure standard column names
+            # Map: content_text (post content), title, author, created_at, platform, engagement_count, etc.
+            self.data['content_text'] = self.data['selftext'].fillna('')
+            self.data['engagement_count'] = self.data['num_comments']
+            self.data['created_at'] = self.data['created_utc']
+            self.data['post_id'] = self.data['id']
+            self.data['community'] = self.data['subreddit']
+            
+            print(f"Normalized Reddit data: {len(self.data)} rows")
+            return True
+        except Exception as e:
+            print(f"Error normalizing Reddit data: {str(e)}")
+            return False
+
+class TwitterConnector(SocialMediaConnector):
+    """Connector for Twitter/X data in JSONL format."""
+    
+    def __init__(self):
+        super().__init__("twitter")
+    
+    def load_data(self, source_path):
+        """Load Twitter data from JSONL file."""
+        try:
+            if os.path.exists(source_path):
+                # Read JSONL file
+                self.data = pd.read_json(source_path, lines=True)
+                print(f"Loaded {len(self.data)} rows from Twitter data source: {source_path}")
+                return True
+            else:
+                print(f"Twitter data file not found at {source_path}")
+                return False
+        except Exception as e:
+            print(f"Error loading Twitter data: {str(e)}")
+            return False
+    
+    def normalize_data(self):
+        """Normalize Twitter data to standard format."""
+        if self.data is None:
+            return False
+        
+        try:
+            # Add platform identifier
+            self.data['platform'] = 'twitter'
+            
+            # Standardize column names - assuming Twitter data structure
+            if 'full_text' in self.data.columns:
+                self.data['content_text'] = self.data['full_text'].fillna('')
+            else:
+                self.data['content_text'] = self.data['text'].fillna('')
+            
+            if 'created_at' in self.data.columns:
+                if isinstance(self.data['created_at'].iloc[0], str):
+                    self.data['created_at'] = pd.to_datetime(self.data['created_at'])
+            
+            # Map standard fields
+            self.data['title'] = ''  # Twitter doesn't have titles
+            self.data['engagement_count'] = self.data.get('retweet_count', 0) + self.data.get('favorite_count', 0)
+            self.data['post_id'] = self.data['id_str'] if 'id_str' in self.data.columns else self.data['id']
+            self.data['community'] = ''  # Twitter doesn't have direct community equivalent
+            
+            print(f"Normalized Twitter data: {len(self.data)} rows")
+            return True
+        except Exception as e:
+            print(f"Error normalizing Twitter data: {str(e)}")
+            return False
+
+class PlatformDataManager:
+    """Manages data from multiple social media platforms."""
+    
+    def __init__(self):
+        self.connectors = {}
+        self.integrated_data = None
+        self.platform_data = {}
+    
+    def add_connector(self, connector):
+        """Add a platform connector."""
+        self.connectors[connector.platform_name] = connector
+    
+    def load_platform_data(self, platform, source_path):
+        """Load and normalize data for a specific platform."""
+        if platform not in self.connectors:
+            print(f"No connector available for platform: {platform}")
+            return False
+        
+        connector = self.connectors[platform]
+        if connector.load_data(source_path):
+            if connector.normalize_data():
+                self.platform_data[platform] = connector.get_data()
+                return True
+        return False
+    
+    def integrate_data(self):
+        """Combine data from all platforms into a unified dataset."""
+        if not self.platform_data:
+            print("No platform data loaded")
+            return False
+        
+        try:
+            # Combine all dataframes
+            dataframes = []
+            for platform, df in self.platform_data.items():
+                if not df.empty:
+                    dataframes.append(df)
+            
+            if dataframes:
+                self.integrated_data = pd.concat(dataframes, ignore_index=True)
+                print(f"Integrated data created with {len(self.integrated_data)} total rows")
+                return True
+            else:
+                print("No valid dataframes to integrate")
+                return False
+        except Exception as e:
+            print(f"Error integrating data: {str(e)}")
+            return False
+    
+    def get_platform_data(self, platform=None):
+        """Get data for a specific platform or all integrated data."""
+        if platform:
+            return self.platform_data.get(platform)
+        return self.integrated_data
+    
+    def get_available_platforms(self):
+        """Get list of platforms with loaded data."""
+        return list(self.platform_data.keys())
+    
+    def filter_data(self, query, platform=None):
+        """Filter data based on query and optional platform."""
+        if platform:
+            if platform not in self.platform_data:
+                return pd.DataFrame()
+            df = self.platform_data[platform]
+            return df[
+                df['content_text'].str.contains(query, case=False, na=False) | 
+                df['title'].str.contains(query, case=False, na=False)
+            ]
+        else:
+            if self.integrated_data is None:
+                return pd.DataFrame()
+            return self.integrated_data[
+                self.integrated_data['content_text'].str.contains(query, case=False, na=False) | 
+                self.integrated_data['title'].str.contains(query, case=False, na=False)
+            ]
+    
+    def discover_data_files(self):
+        """Automatically discover data files for different platforms."""
+        discovered_files = {}
+        data_dir = "./data"
+        
+        # Look for Reddit data files
+        reddit_files = glob.glob(f"{data_dir}/*reddit*.jsonl")
+        if reddit_files:
+            discovered_files["reddit"] = reddit_files[0]
+        
+        # Look for Twitter data files
+        twitter_files = glob.glob(f"{data_dir}/*twitter*.jsonl") + glob.glob(f"{data_dir}/*tweet*.jsonl")
+        if twitter_files:
+            discovered_files["twitter"] = twitter_files[0]
+        
+        # Default to data.jsonl as Reddit if no specific files found
+        if "reddit" not in discovered_files and os.path.exists(f"{data_dir}/data.jsonl"):
+            discovered_files["reddit"] = f"{data_dir}/data.jsonl"
+        
+        return discovered_files
 
 # Load environment variables from .env file if it exists
 load_dotenv()
@@ -29,6 +250,9 @@ CORS(app)
 data = None
 # Path to the dataset file
 DATASET_PATH = "./data/data.jsonl"
+
+# Create the platform data manager
+platform_manager = PlatformDataManager()
 
 # Initialize tokenizer and model for summarization
 try:
@@ -1727,6 +1951,294 @@ def generate_template_response(intent, metrics, search_query):
     
     # Default/general response
     return f"I analyzed {metrics['total_posts']} posts about '{search_query}' from {metrics['unique_authors']} authors. Key terms include {', '.join(metrics.get('top_keywords', [])[:5])}{'. Most discussions occurred in ' + ', '.join(list(metrics['top_subreddits'].keys())[:2]) if metrics['top_subreddits'] else ''}."
+
+# Event-related functionality
+# Dictionary to store manually curated event data
+event_database = {
+    "ukraine russia war": [
+        {"date": "2022-02-24", "title": "Russian invasion of Ukraine begins", "description": "Russia launches a full-scale military invasion of Ukraine", "source": "Wikipedia"},
+        {"date": "2022-03-02", "title": "Kherson falls to Russian forces", "description": "The city of Kherson becomes the first major Ukrainian city to fall to Russian forces", "source": "Wikipedia"},
+        {"date": "2022-04-03", "title": "Bucha massacre discovered", "description": "Evidence of war crimes discovered after Russian withdrawal from Bucha", "source": "Wikipedia"},
+        {"date": "2022-05-17", "title": "Azovstal defenders surrender", "description": "Ukrainian defenders at Azovstal steel plant in Mariupol surrender after weeks-long siege", "source": "Wikipedia"},
+        {"date": "2022-09-30", "title": "Russian annexation of occupied territories", "description": "Russia formally annexes four partially occupied Ukrainian regions", "source": "Wikipedia"},
+        {"date": "2022-11-11", "title": "Ukrainian forces recapture Kherson", "description": "Ukrainian forces liberate the city of Kherson after Russian withdrawal", "source": "Wikipedia"},
+    ],
+    "covid vaccine": [
+        {"date": "2020-12-11", "title": "FDA authorizes Pfizer vaccine", "description": "FDA issues first emergency use authorization for Pfizer-BioNTech COVID-19 vaccine", "source": "FDA"},
+        {"date": "2020-12-18", "title": "FDA authorizes Moderna vaccine", "description": "FDA issues emergency use authorization for Moderna COVID-19 vaccine", "source": "FDA"},
+        {"date": "2021-02-27", "title": "Johnson & Johnson vaccine authorized", "description": "FDA issues emergency use authorization for single-dose Johnson & Johnson COVID-19 vaccine", "source": "FDA"},
+        {"date": "2021-05-10", "title": "Pfizer approved for adolescents", "description": "FDA expands Pfizer vaccine authorization to include adolescents 12-15 years old", "source": "FDA"},
+        {"date": "2021-08-23", "title": "Pfizer receives full FDA approval", "description": "Pfizer-BioNTech COVID-19 vaccine receives full FDA approval for individuals 16 years and older", "source": "FDA"},
+        {"date": "2021-10-29", "title": "Pfizer approved for children 5-11", "description": "FDA authorizes Pfizer vaccine for emergency use in children 5-11 years old", "source": "FDA"},
+    ],
+    "climate change": [
+        {"date": "2021-02-19", "title": "US rejoins Paris Climate Agreement", "description": "The United States officially rejoins the Paris Climate Agreement", "source": "UN"},
+        {"date": "2021-08-09", "title": "IPCC Sixth Assessment Report", "description": "IPCC releases landmark report showing 'code red for humanity' on climate change", "source": "IPCC"},
+        {"date": "2021-11-13", "title": "COP26 concludes with Glasgow Climate Pact", "description": "UN Climate Change Conference concludes with new global agreement", "source": "UNFCCC"},
+        {"date": "2022-03-21", "title": "Record Antarctic heat wave", "description": "Antarctica experiences unprecedented heat wave with temperatures 40°C above normal", "source": "NOAA"},
+        {"date": "2022-08-16", "title": "US Inflation Reduction Act signed", "description": "US passes major climate legislation with $369 billion for climate action", "source": "US Government"},
+    ],
+    "cryptocurrency": [
+        {"date": "2021-02-08", "title": "Tesla invests $1.5B in Bitcoin", "description": "Tesla announces $1.5 billion investment in Bitcoin and plans to accept it as payment", "source": "SEC filings"},
+        {"date": "2021-04-14", "title": "Coinbase goes public", "description": "Cryptocurrency exchange Coinbase begins trading on Nasdaq", "source": "Nasdaq"},
+        {"date": "2021-05-12", "title": "Tesla suspends Bitcoin payments", "description": "Tesla suspends vehicle purchases using Bitcoin, citing environmental concerns", "source": "Twitter"},
+        {"date": "2021-09-07", "title": "El Salvador adopts Bitcoin", "description": "El Salvador becomes first country to adopt Bitcoin as legal tender", "source": "Government of El Salvador"},
+        {"date": "2022-05-12", "title": "Terra Luna collapse", "description": "Cryptocurrency Terra Luna collapses, wiping out $40 billion in market value", "source": "CoinMarketCap"},
+        {"date": "2022-11-11", "title": "FTX files for bankruptcy", "description": "Major cryptocurrency exchange FTX files for bankruptcy after liquidity crisis", "source": "FTX"},
+    ],
+    "artificial intelligence": [
+        {"date": "2022-01-27", "title": "Google's AI system for chip design", "description": "Google announces using AI system for chip floorplanning design that outperforms humans", "source": "Google Research"},
+        {"date": "2022-04-13", "title": "EU AI Act proposed", "description": "European Union proposes comprehensive AI regulations", "source": "European Commission"},
+        {"date": "2022-11-30", "title": "ChatGPT released", "description": "OpenAI releases ChatGPT, triggering massive public interest in AI", "source": "OpenAI"},
+        {"date": "2023-03-14", "title": "GPT-4 announced", "description": "OpenAI announces GPT-4, a multimodal large language model", "source": "OpenAI"},
+        {"date": "2023-05-22", "title": "AI Safety Summit announced", "description": "UK announces plans to host first global AI Safety Summit", "source": "UK Government"},
+    ]
+}
+
+@app.route('/api/events', methods=['GET'])
+def get_historical_events():
+    """
+    Retrieves historical events related to a search query and correlates them with social media activity.
+    
+    This endpoint:
+    1. Takes a search query and date range
+    2. Identifies relevant real-world events from reliable sources
+    3. Maps these events to peaks or patterns in the social media data
+    4. Returns the correlated events with contextual information
+    
+    Query Parameters:
+        query (str): Search term to match events and filter posts
+        start_date (str, optional): Start date for filtering (YYYY-MM-DD)
+        end_date (str, optional): End date for filtering (YYYY-MM-DD)
+    
+    Returns:
+        JSON: Object containing events, their correlation to social media activity, 
+              and contextual information about the relationship
+    """
+    if data is None:
+        return jsonify({'error': 'No data loaded'}), 400
+    
+    query = request.args.get('query', '')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    
+    try:
+        # Find events related to the query
+        # First, look for exact matches in our event database
+        matching_events = []
+        
+        # Try to find the most relevant event category based on the query
+        best_match = None
+        highest_match_score = 0
+        
+        for event_category in event_database.keys():
+            # Calculate simple term overlap for matching
+            category_terms = set(event_category.lower().split())
+            query_terms = set(query.lower().split())
+            common_terms = category_terms.intersection(query_terms)
+            
+            # Score based on proportion of matching terms
+            if len(category_terms) > 0:
+                match_score = len(common_terms) / len(category_terms)
+                
+                # Check if this is the best match so far
+                if match_score > highest_match_score:
+                    highest_match_score = match_score
+                    best_match = event_category
+        
+        # Use best matching category if score is above threshold
+        if highest_match_score >= 0.3 and best_match:
+            matching_events = event_database[best_match]
+        
+        # If no matches, try to look for partial matches or use Groq to generate events
+        if not matching_events and has_groq and GROQ_API_KEY:
+            # Use Groq API to generate potential events
+            groq_api_url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            
+            # Construct a prompt to generate historical events
+            prompt = f"""
+            I need a list of 3-5 major historical events related to "{query}".
+            
+            For each event, provide:
+            1. The date (in YYYY-MM-DD format)
+            2. A short title (5-7 words)
+            3. A brief description (15-20 words)
+            4. A reliable source
+            
+            Format the response as a JSON list of objects with fields: date, title, description, source.
+            Do not include explanations or any text outside the JSON structure.
+            """
+            
+            payload = {
+                "model": "llama3-8b-8192",
+                "messages": [
+                    {"role": "system", "content": "You are a helpful assistant that provides accurate historical information."},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.2,
+                "max_tokens": 500
+            }
+            
+            try:
+                response = requests.post(groq_api_url, headers=headers, json=payload)
+                if response.status_code == 200:
+                    result = response.json()
+                    events_text = result["choices"][0]["message"]["content"].strip()
+                    
+                    # Extract JSON from response (it might be wrapped in markdown code blocks)
+                    import re
+                    json_match = re.search(r'```json(.*?)```', events_text, re.DOTALL)
+                    if json_match:
+                        events_text = json_match.group(1).strip()
+                    
+                    # Clean up any remaining markdown or text
+                    events_text = re.sub(r'```.*?```', '', events_text, flags=re.DOTALL)
+                    events_text = events_text.strip()
+                    
+                    # Try to parse the JSON
+                    try:
+                        import json
+                        generated_events = json.loads(events_text)
+                        matching_events = generated_events
+                    except json.JSONDecodeError:
+                        print(f"Error parsing generated events: {events_text}")
+            except Exception as e:
+                print(f"Error generating events with Groq: {e}")
+        
+        # If still no events, return an informative message
+        if not matching_events:
+            return jsonify({
+                'events': [],
+                'message': f"No historical events found for '{query}'. Try a more specific query related to major news events."
+            })
+        
+        # Filter events by date range if provided
+        if start_date and end_date:
+            start = pd.to_datetime(start_date)
+            end = pd.to_datetime(end_date)
+            matching_events = [
+                event for event in matching_events 
+                if start <= pd.to_datetime(event['date']) <= end
+            ]
+        
+        # If there are no events in the specified range, return appropriate message
+        if not matching_events:
+            return jsonify({
+                'events': [],
+                'message': f"No events found for '{query}' in the specified date range. Try expanding the date range or using a different query."
+            })
+        
+        # Correlate events with social media activity
+        # Filter data based on query for time series
+        filtered_data = data[
+            data['selftext'].str.contains(query, case=False, na=False) |
+            data['title'].str.contains(query, case=False, na=False)
+        ]
+        
+        # Group by date to get post counts
+        filtered_data['date'] = filtered_data['created_utc'].dt.date
+        post_counts = filtered_data.groupby('date').size()
+        
+        # Calculate rolling average for smoothing (7-day window)
+        rolling_avg = post_counts.rolling(window=7, min_periods=1).mean()
+        
+        # Calculate standard deviation for detecting peaks
+        std_dev = post_counts.std()
+        mean_posts = post_counts.mean()
+        
+        # Find peaks (days with significantly higher activity)
+        peak_dates = post_counts[post_counts > (mean_posts + 1.5 * std_dev)].index
+        
+        # Map events to their nearby activity and identify correlations
+        correlated_events = []
+        for event in matching_events:
+            event_date = pd.to_datetime(event['date']).date()
+            
+            # Check if event data is in the post counts index
+            if event_date in post_counts.index:
+                posts_on_day = int(post_counts.loc[event_date])
+                rolling_avg_on_day = float(rolling_avg.loc[event_date])
+            else:
+                # Find the closest date in the data
+                closest_dates = post_counts.index.astype('datetime64[ns]').astype(object)
+                closest_dates = [date for date in closest_dates]
+                
+                if not closest_dates:
+                    # No post data available for comparison
+                    posts_on_day = 0
+                    rolling_avg_on_day = 0
+                else:
+                    # Find the date closest to the event date
+                    closest_date = min(closest_dates, key=lambda x: abs(x - event_date))
+                    posts_on_day = int(post_counts.loc[closest_date])
+                    rolling_avg_on_day = float(rolling_avg.loc[closest_date])
+            
+            # Calculate days to nearest peak
+            if len(peak_dates) > 0:
+                days_to_nearest_peak = min([abs((event_date - peak_date).days) for peak_date in peak_dates])
+            else:
+                days_to_nearest_peak = None
+            
+            # Determine correlation type
+            if days_to_nearest_peak is not None and days_to_nearest_peak <= 2:
+                correlation = "strong"  # Event coincides with peak
+            elif days_to_nearest_peak is not None and days_to_nearest_peak <= 7:
+                correlation = "moderate"  # Event is close to peak
+            else:
+                correlation = "weak"  # No clear correlation
+            
+            # Calculate relative activity compared to average (how many times above average)
+            if rolling_avg_on_day > 0:
+                activity_ratio = posts_on_day / rolling_avg_on_day
+            else:
+                activity_ratio = 0
+            
+            # Add correlation data to the event
+            correlated_event = {
+                **event,  # Keep original event data
+                'posts_on_day': posts_on_day,
+                'average_posts': round(rolling_avg_on_day, 2),
+                'activity_ratio': round(activity_ratio, 2),
+                'correlation': correlation,
+                'days_to_nearest_peak': days_to_nearest_peak
+            }
+            
+            # Add user-friendly insights about correlation
+            if correlation == "strong":
+                correlated_event['insight'] = f"This event coincides with a significant spike in online discussions, with {posts_on_day} posts (about {round(activity_ratio, 1)}x the average)."
+            elif correlation == "moderate":
+                correlated_event['insight'] = f"This event is temporally close to increased online activity, with {posts_on_day} posts around this time."
+            else:
+                correlated_event['insight'] = f"This event didn't correspond with unusual online activity, with {posts_on_day} posts on this day."
+            
+            correlated_events.append(correlated_event)
+        
+        # Create a time series summary for context
+        time_series_data = []
+        for date, count in post_counts.items():
+            time_series_data.append({
+                'date': date.strftime('%Y-%m-%d'),
+                'count': int(count),
+                'is_peak': date in peak_dates
+            })
+        
+        # Return the correlated events with context
+        return jsonify({
+            'events': correlated_events,
+            'time_series': time_series_data,
+            'query': query,
+            'total_posts': len(filtered_data),
+            'peak_dates': [date.strftime('%Y-%m-%d') for date in peak_dates],
+            'event_category': best_match if highest_match_score >= 0.3 else query
+        })
+    
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': f'Error retrieving events: {str(e)}'}), 500
 
 if __name__ == '__main__':
     # Load dataset on startup
