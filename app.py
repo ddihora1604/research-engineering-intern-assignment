@@ -19,6 +19,7 @@ from sentence_transformers import SentenceTransformer
 import traceback
 import math
 import glob
+import re
 
 # Data connector framework for multiple platforms
 class SocialMediaConnector:
@@ -2239,6 +2240,324 @@ def get_historical_events():
     except Exception as e:
         traceback.print_exc()
         return jsonify({'error': f'Error retrieving events: {str(e)}'}), 500
+
+@app.route('/api/semantic_search', methods=['GET'])
+def semantic_search():
+    """
+    Performs semantic search on posts containing a specific URL.
+    
+    This endpoint:
+    1. Retrieves posts containing the specified URL
+    2. Generates semantic embeddings for these posts
+    3. Computes semantic similarity with the search query
+    4. Returns the most semantically relevant results
+    
+    Query Parameters:
+        url (str): URL to search for in posts
+        query (str): Search query for semantic matching
+        platform (str, optional): Specific platform to search (default: all platforms)
+        max_results (int, optional): Maximum number of results to return (default: 20)
+    
+    Returns:
+        JSON: Object containing semantically ranked results
+    """
+    global platform_manager, data
+    
+    # Check if data is available
+    if (platform_manager.integrated_data is None) and (data is None):
+        return jsonify({'error': 'No data loaded'}), 400
+    
+    url = request.args.get('url', '')
+    query = request.args.get('query', '')
+    platform = request.args.get('platform', None)
+    max_results = min(int(request.args.get('max_results', 20)), 100)  # Limit to max 100 for performance
+    
+    if not url:
+        return jsonify({'error': 'URL parameter is required'}), 400
+    
+    try:
+        # Step 1: Find posts containing the URL
+        # Use platform manager if available
+        if platform_manager.integrated_data is not None:
+            # Find posts containing the URL across platforms or in a specific platform
+            all_data = platform_manager.get_platform_data(platform)
+            
+            # Use the normalized column names
+            content_column = 'content_text'
+            title_column = 'title'
+        else:
+            # Fallback to global data variable (backward compatibility)
+            all_data = data
+            content_column = 'selftext'
+            title_column = 'title'
+        
+        # Filter posts containing the URL
+        url_pattern = re.escape(url)
+        url_matches = all_data[
+            all_data[content_column].str.contains(url_pattern, case=False, na=False, regex=True) |
+            all_data[title_column].str.contains(url_pattern, case=False, na=False, regex=True)
+        ]
+        
+        if len(url_matches) == 0:
+            return jsonify({
+                'results': [],
+                'message': f"No posts found containing URL: {url}"
+            })
+        
+        # Step 2: If no query provided, return the URL matches directly
+        if not query:
+            # Sort by date (most recent first)
+            url_matches = url_matches.sort_values(by='created_at' if 'created_at' in url_matches.columns else 'created_utc', ascending=False)
+            
+            # Format the results
+            results = []
+            for _, post in url_matches.head(max_results).iterrows():
+                result = {
+                    'title': post.get(title_column, ''),
+                    'content': post.get(content_column, '')[:300] + '...' if len(post.get(content_column, '') or '') > 300 else post.get(content_column, ''),
+                    'author': post.get('author', ''),
+                    'created_at': post.get('created_at', post.get('created_utc', '')).isoformat(),
+                    'platform': post.get('platform', 'reddit'),
+                    'similarity': 1.0,  # Direct URL match
+                    'url_match': True
+                }
+                if 'community' in post:
+                    result['community'] = post['community']
+                elif 'subreddit' in post:
+                    result['community'] = post['subreddit']
+                
+                results.append(result)
+            
+            return jsonify({
+                'results': results,
+                'total_matches': len(url_matches),
+                'message': f"Found {len(url_matches)} posts containing the URL"
+            })
+        
+        # Step 3: Perform semantic search with the query
+        # Load the sentence transformer model on demand
+        global semantic_model
+        if semantic_model is None:
+            try:
+                # Use a smaller, faster model for embeddings
+                semantic_model = SentenceTransformer('all-MiniLM-L6-v2')
+                print("Loaded semantic embedding model successfully")
+            except Exception as e:
+                print(f"Error loading semantic model: {e}")
+                return jsonify({'error': 'Failed to load semantic model'}), 500
+        
+        # Step 4: Generate embeddings for the query and posts
+        # Create the query embedding
+        query_embedding = semantic_model.encode(query, convert_to_tensor=True)
+        
+        # Prepare texts from matched posts for embedding
+        post_texts = []
+        for idx, post in url_matches.iterrows():
+            # Combine title and content for better semantic matching
+            title = post.get(title_column, '')
+            content = post.get(content_column, '')
+            combined = f"{title} {content[:500]}"  # Limit length for efficiency
+            post_texts.append(combined)
+        
+        # Generate embeddings for all posts
+        post_embeddings = semantic_model.encode(post_texts, convert_to_tensor=True)
+        
+        # Step 5: Compute semantic similarity
+        # Calculate cosine similarity between query and each post
+        from torch.nn import functional as F
+        similarities = F.cosine_similarity(query_embedding.unsqueeze(0), post_embeddings).cpu().numpy()
+        
+        # Step 6: Rank the results by similarity
+        # Create a list of (index, similarity) pairs
+        ranked_indices = [(i, similarities[i]) for i in range(len(similarities))]
+        # Sort by similarity (highest first)
+        ranked_indices.sort(key=lambda x: x[1], reverse=True)
+        
+        # Step 7: Format and return top results
+        results = []
+        for i, similarity in ranked_indices[:max_results]:
+            post = url_matches.iloc[i]
+            result = {
+                'title': post.get(title_column, ''),
+                'content': post.get(content_column, '')[:300] + '...' if len(post.get(content_column, '') or '') > 300 else post.get(content_column, ''),
+                'author': post.get('author', ''),
+                'created_at': post.get('created_at', post.get('created_utc', '')).isoformat(),
+                'platform': post.get('platform', 'reddit'),
+                'similarity': float(similarity),
+                'url_match': True
+            }
+            if 'community' in post:
+                result['community'] = post['community']
+            elif 'subreddit' in post:
+                result['community'] = post['subreddit']
+            
+            results.append(result)
+        
+        return jsonify({
+            'results': results,
+            'total_matches': len(url_matches),
+            'query': query,
+            'message': f"Found {len(results)} semantically relevant posts containing the URL"
+        })
+    
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': f'Error during semantic search: {str(e)}'}), 500
+
+@app.route('/api/semantic_query', methods=['GET'])
+def semantic_query():
+    """
+    Performs semantic search across all posts in the dataset.
+    
+    This endpoint:
+    1. Takes a natural language query
+    2. Generates semantic embeddings for the query and posts
+    3. Finds posts that are semantically similar to the query
+    4. Returns ranked results based on semantic similarity
+    
+    Query Parameters:
+        query (str): Natural language query for semantic search
+        platform (str, optional): Specific platform to search (default: all platforms)
+        max_results (int, optional): Maximum number of results to return (default: 20)
+        min_similarity (float, optional): Minimum similarity score threshold (default: 0.5)
+    
+    Returns:
+        JSON: Object containing semantically ranked search results
+    """
+    global platform_manager, data, semantic_model
+    
+    # Check if data is available
+    if (platform_manager.integrated_data is None) and (data is None):
+        return jsonify({'error': 'No data loaded'}), 400
+    
+    query = request.args.get('query', '')
+    platform = request.args.get('platform', None)
+    max_results = min(int(request.args.get('max_results', 20)), 100)  # Limit to max 100 for performance
+    min_similarity = float(request.args.get('min_similarity', 0.5))  # Minimum similarity threshold
+    
+    if not query:
+        return jsonify({'error': 'Query parameter is required'}), 400
+    
+    try:
+        # Use platform manager if available
+        if platform_manager.integrated_data is not None:
+            # Get data from specific platform or all platforms
+            all_data = platform_manager.get_platform_data(platform)
+            
+            # Use the normalized column names
+            content_column = 'content_text'
+            title_column = 'title'
+        else:
+            # Fallback to global data variable (backward compatibility)
+            all_data = data
+            content_column = 'selftext'
+            title_column = 'title'
+        
+        # To avoid processing too many posts, take a reasonable sample
+        sample_size = 1000  # Sample size for semantic processing
+        if len(all_data) > sample_size:
+            # Try to get a balanced sample across platforms
+            if 'platform' in all_data.columns and platform is None:
+                # Try to get a balanced sample across platforms
+                platforms = all_data['platform'].unique()
+                per_platform = max(50, sample_size // len(platforms))
+                sample_frames = []
+                
+                for p in platforms:
+                    platform_data = all_data[all_data['platform'] == p]
+                    if len(platform_data) > per_platform:
+                        platform_sample = platform_data.sample(per_platform, random_state=42)
+                        sample_frames.append(platform_sample)
+                    else:
+                        sample_frames.append(platform_data)
+                
+                sampled_data = pd.concat(sample_frames)
+            else:
+                # Simple random sample
+                sampled_data = all_data.sample(sample_size, random_state=42)
+        else:
+            sampled_data = all_data
+        
+        # Load the sentence transformer model on demand
+        if semantic_model is None:
+            try:
+                semantic_model = SentenceTransformer('all-MiniLM-L6-v2')
+                print("Loaded semantic embedding model successfully")
+            except Exception as e:
+                print(f"Error loading semantic model: {e}")
+                return jsonify({'error': 'Failed to load semantic model'}), 500
+        
+        # Generate embedding for the query
+        query_embedding = semantic_model.encode(query, convert_to_tensor=True)
+        
+        # Prepare texts from posts for embedding
+        post_texts = []
+        post_indices = []
+        
+        for idx, post in sampled_data.iterrows():
+            # Combine title and content for better semantic matching
+            title = post.get(title_column, '')
+            content = post.get(content_column, '')
+            combined = f"{title} {content[:500]}"  # Limit length for efficiency
+            post_texts.append(combined)
+            post_indices.append(idx)
+        
+        # Generate embeddings for all posts
+        post_embeddings = semantic_model.encode(post_texts, convert_to_tensor=True)
+        
+        # Compute semantic similarity
+        from torch.nn import functional as F
+        similarities = F.cosine_similarity(query_embedding.unsqueeze(0), post_embeddings).cpu().numpy()
+        
+        # Create a list of (index, similarity) pairs
+        ranked_indices = [(post_indices[i], similarities[i]) for i in range(len(similarities))]
+        
+        # Filter by minimum similarity threshold and sort
+        ranked_indices = [pair for pair in ranked_indices if pair[1] >= min_similarity]
+        ranked_indices.sort(key=lambda x: x[1], reverse=True)
+        
+        # Format the top results
+        results = []
+        for idx, similarity in ranked_indices[:max_results]:
+            post = all_data.loc[idx]
+            result = {
+                'title': post.get(title_column, ''),
+                'content': post.get(content_column, '')[:300] + '...' if len(post.get(content_column, '') or '') > 300 else post.get(content_column, ''),
+                'author': post.get('author', ''),
+                'created_at': post.get('created_at', post.get('created_utc', '')).isoformat(),
+                'platform': post.get('platform', 'reddit'),
+                'similarity': float(similarity)
+            }
+            if 'community' in post:
+                result['community'] = post['community']
+            elif 'subreddit' in post:
+                result['community'] = post['subreddit']
+            
+            results.append(result)
+        
+        # Extract key terms from the query for explanation
+        keywords = []
+        try:
+            # Simple extraction of nouns and important words
+            import re
+            words = re.findall(r'\b[a-zA-Z]{3,}\b', query.lower())
+            stop_words = {'the', 'and', 'for', 'with', 'about', 'what', 'how', 'when', 'who', 'why', 'where', 'which'}
+            keywords = [word for word in words if word not in stop_words][:5]  # Top 5 keywords
+        except:
+            pass
+        
+        return jsonify({
+            'results': results,
+            'total_results': len(results),
+            'sample_size': len(sampled_data),
+            'query': query,
+            'key_terms': keywords,
+            'message': f"Found {len(results)} semantically relevant posts matching your query"
+        })
+    
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': f'Error during semantic query: {str(e)}'}), 500
 
 if __name__ == '__main__':
     # Load dataset on startup
