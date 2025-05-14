@@ -1439,7 +1439,7 @@ def get_dynamic_description():
             return jsonify({'description': default_description.get(section, """
                 <div class='description-content'>
                     <h4 class='section-heading'>Community Distribution Analysis</h4>
-                    <p>Visualized pie chart of communities (or accounts) on the social media platform that are key contributors to the conversation about "{query}".</p>                                      
+                    <p>Visualizes pie chart of communities (or accounts) on the social media platform that are key contributors to the conversation.</p>                                      
                 </div>
             """)})
         
@@ -1643,7 +1643,7 @@ def get_dynamic_description():
             return jsonify({'description': default_description.get(section, """
                 <div class='description-content'>
                     <h4 class='section-heading'>Community Distribution Analysis</h4>
-                    <p>This section analyzes data based on your query.</p>
+                    <p>Visualizes pie chart of communities (or accounts) on the social media platform that are key contributors to the conversation.</p>
                 </div>
             """)})
             
@@ -1653,7 +1653,7 @@ def get_dynamic_description():
             'description': default_description.get(section, """
                 <div class='description-content'>
                     <h4 class='section-heading'>Community Distribution Analysis</h4>
-                    <p>Visualized pie chart of communities (or accounts) on the social media platform that are key contributors to the conversation about "{query}".</p>
+                    <p>Visualizes pie chart of communities (or accounts) on the social media platform that are key contributors to the conversation.</p>
                 </div>
             """),
             'error': str(e)
