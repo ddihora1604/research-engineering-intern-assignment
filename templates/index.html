@@ -40,25 +40,229 @@
             line-height: 1.6;
         }
         
+        .dashboard-header h1 {
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            margin-bottom: 15px;
+            font-size: 3rem;
+            text-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+            position: relative;
+            display: inline-block;
+            background: linear-gradient(to right, #ffffff, #f0f0f0);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        
+        .dashboard-header h1::before {
+            content: attr(data-text);
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: linear-gradient(45deg, var(--accent-light), var(--accent-color));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            z-index: -1;
+            filter: blur(10px);
+            opacity: 0.6;
+        }
+        
+        .dashboard-header h1::after {
+            content: '';
+            position: absolute;
+            bottom: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-color), var(--secondary-color));
+            border-radius: 4px;
+        }
+        
+        .dashboard-header h1 i {
+            margin-right: 15px;
+            font-size: 2.6rem;
+            background: linear-gradient(135deg, #ffb88c 0%, var(--accent-color) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.3));
+        }
+        
+        .dashboard-header .subtitle {
+            font-weight: 400;
+            opacity: 0.95;
+            max-width: 800px;
+            margin: 20px auto 0;
+            font-size: 1.15rem;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+            letter-spacing: 0.3px;
+        }
+        
+        .dashboard-header .header-decoration {
+            margin-top: 25px;
+            display: flex;
+            justify-content: center;
+            gap: 18px;
+            align-items: center;
+        }
+        
+        .dashboard-header .header-decoration span:nth-child(1) {
+            width: 45px;
+            height: 5px;
+            background-color: var(--accent-color);
+            opacity: 0.8;
+            border-radius: 3px;
+        }
+        
+        .dashboard-header .header-decoration span:nth-child(2) {
+            width: 90px;
+            height: 5px;
+            background: linear-gradient(90deg, var(--secondary-color), #8fad9f);
+            opacity: 0.85;
+            border-radius: 3px;
+        }
+        
+        .dashboard-header .header-decoration span:nth-child(3) {
+            width: 45px;
+            height: 5px;
+            background-color: var(--accent-color);
+            opacity: 0.8;
+            border-radius: 3px;
+        }
+        
         /* Header Styling */
         .dashboard-header {
-            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-color) 100%);
+            background: linear-gradient(135deg, #2c4674 0%, #3a5c94 50%, #4a6fa5 100%);
+            position: relative;
             color: var(--text-light);
-            padding: 28px 0;
-            margin-bottom: 25px;
+            padding: 40px 0 35px;
+            margin-bottom: 30px;
             border-bottom: none;
-            box-shadow: var(--card-shadow);
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
         }
         
-        .dashboard-header h1 {
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            margin-bottom: 8px;
+        .dashboard-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='rgba(255,255,255,.08)' fill-rule='evenodd'/%3E%3C/svg%3E");
+            opacity: 0.7;
         }
         
-        .dashboard-header .lead {
+        .dashboard-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 8px;
+            background: linear-gradient(90deg, 
+                var(--accent-color) 0%, 
+                var(--secondary-color) 35%, 
+                var(--primary-color) 65%, 
+                var(--accent-color) 100%);
+            opacity: 0.75;
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .dashboard-header .header-decoration {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .dashboard-header .header-decoration span {
+            display: inline-block;
+            height: 4px;
+            border-radius: 2px;
+        }
+        
+        .dashboard-header .header-decoration span:nth-child(1) {
+            width: 40px;
+            background-color: var(--accent-color);
+            opacity: 0.7;
+        }
+        
+        .dashboard-header .header-decoration span:nth-child(2) {
+            width: 80px;
+            background-color: var(--secondary-color);
+            opacity: 0.8;
+        }
+        
+        .dashboard-header .header-decoration span:nth-child(3) {
+            width: 40px;
+            background-color: var(--accent-color);
+            opacity: 0.7;
+        }
+        
+        .dashboard-header .title-container {
+            text-align: center;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .dashboard-header h1 i {
+            margin-right: 15px;
+            background: linear-gradient(135deg, var(--accent-light) 0%, var(--accent-color) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.2));
+        }
+        
+        .dashboard-header .subtitle {
             font-weight: 400;
             opacity: 0.9;
+            max-width: 800px;
+            margin: 15px auto 0;
+            font-size: 1.1rem;
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-header {
+                padding: 30px 0 28px;
+            }
+            
+            .dashboard-header h1 {
+                font-size: 2.3rem;
+            }
+            
+            .dashboard-header .subtitle {
+                font-size: 1.05rem;
+                padding: 0 25px;
+                line-height: 1.5;
+            }
+            
+            .dashboard-header .header-decoration span:nth-child(1),
+            .dashboard-header .header-decoration span:nth-child(3) {
+                width: 35px;
+            }
+            
+            .dashboard-header .header-decoration span:nth-child(2) {
+                width: 70px;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .dashboard-header h1 {
+                font-size: 1.9rem;
+            }
+            
+            .dashboard-header h1 i {
+                font-size: 1.8rem;
+                margin-right: 10px;
+            }
+            
+            .dashboard-header .subtitle {
+                font-size: 1rem;
+                padding: 0 20px;
+            }
         }
         
         /* Container Styling */
@@ -232,6 +436,172 @@
             padding-top: 20px;
         }
         
+        /* Hide original tabs */
+        ul.nav-tabs:not(.modern-nav-tabs) {
+            display: none;
+        }
+        
+        /* Modern Full-Width Tab Navigation */
+        .modern-tabs-container {
+            margin-bottom: 30px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.08);
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+            padding: 0 15px;
+        }
+        
+        .nav-tabs-wrapper {
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+        
+        .modern-nav-tabs {
+            display: flex;
+            width: 100%;
+            border: none;
+            padding: 0;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+            justify-content: space-around;
+        }
+        
+        .modern-nav-tabs .nav-item {
+            flex: 1 1 0;
+            text-align: center;
+            max-width: none;
+            display: flex;
+            justify-content: center;
+        }
+        
+        .modern-nav-tabs .nav-link {
+            border: none;
+            border-radius: 0;
+            padding: 18px 8px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            position: relative;
+            background-color: transparent;
+            overflow: hidden;
+            white-space: nowrap;
+            width: 100%;
+            justify-content: center;
+        }
+        
+        .modern-nav-tabs .nav-link i {
+            font-size: 1.4rem;
+            margin-bottom: 4px;
+            transition: transform 0.3s ease;
+        }
+        
+        .modern-nav-tabs .nav-link span {
+            font-size: 0.95rem;
+            transition: color 0.3s ease;
+        }
+        
+        .modern-nav-tabs .nav-link::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-color), var(--primary-color));
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+            transform-origin: left;
+        }
+        
+        .modern-nav-tabs .nav-link:hover {
+            color: var(--primary-color);
+            background-color: var(--primary-light);
+        }
+        
+        .modern-nav-tabs .nav-link:hover i {
+            transform: translateY(-2px);
+        }
+        
+        .modern-nav-tabs .nav-link.active {
+            color: var(--primary-color);
+            font-weight: 600;
+            background-color: var(--primary-light);
+        }
+        
+        .modern-nav-tabs .nav-link.active::before {
+            transform: scaleX(1);
+        }
+        
+        .modern-nav-tabs .nav-link.active i {
+            color: var(--primary-color);
+        }
+        
+        .active-tab-indicator {
+            position: absolute;
+            bottom: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-color), var(--primary-color));
+            transition: all 0.3s ease;
+            border-radius: 3px 3px 0 0;
+        }
+        
+        /* Make tab content start closer to tabs */
+        .tab-content {
+            padding-top: 5px;
+        }
+        
+        /* Responsive adjustments for tabs */
+        @media (max-width: 992px) {
+            .modern-nav-tabs .nav-link {
+                padding: 15px 5px;
+            }
+            
+            .modern-nav-tabs .nav-link i {
+                font-size: 1.2rem;
+            }
+            
+            .modern-nav-tabs .nav-link span {
+                font-size: 0.85rem;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .modern-nav-tabs .nav-link {
+                padding: 12px 4px;
+            }
+            
+            .modern-nav-tabs .nav-link span {
+                font-size: 0.8rem;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .modern-nav-tabs .nav-link {
+                padding: 10px 2px;
+            }
+            
+            .modern-nav-tabs .nav-link i {
+                font-size: 1.1rem;
+                margin-bottom: 2px;
+            }
+            
+            .modern-nav-tabs .nav-link span {
+                font-size: 0.75rem;
+            }
+        }
+        
         /* Stat Cards */
         .stat-card {
             padding: 20px;
@@ -363,22 +733,6 @@
             box-shadow: var(--hover-shadow);
         }
         
-        /* Responsive Adjustments */
-        @media (max-width: 768px) {
-            .chart-container {
-                padding: 15px;
-            }
-            
-            .stat-value {
-                font-size: 1.8rem;
-            }
-            
-            .nav-tabs .nav-link {
-                padding: 10px 12px;
-                font-size: 0.9rem;
-            }
-        }
-        
         /* Alert Styling */
         .alert {
             border-radius: var(--border-radius);
@@ -463,15 +817,22 @@
 <body>
     <div class="dashboard-header">
         <div class="container-fluid">
-            <h1><i class="bi bi-graph-up"></i> Social Media Analysis Dashboard</h1>
-            <p class="lead">Analyze trends, narratives, and coordinated behavior across social media platforms</p>
+            <div class="title-container">
+                <h1 data-text="Social Media Analysis Dashboard"><i class="bi bi-graph-up"></i> Social Media Analysis Dashboard</h1>
+                <p class="subtitle">Discover insights, analyze trends, and visualize patterns through keywords, links, hashtags, and topics across social media platforms</p>
+                <div class="header-decoration">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
         </div>
     </div>
 
     <div class="container-fluid">
         <!-- Query Settings -->
         <div class="controls">
-            <h3><i class="bi bi-search"></i> Query Settings</h3>
+    
             <div class="card">
                 <div class="card-body">
                     <div class="mb-3">
@@ -488,9 +849,11 @@
                             <input type="date" class="form-control" id="end-date">
                         </div>
                     </div>
-                    <button id="analyze-btn" class="btn btn-success">
-                        <i class="bi bi-search"></i> Analyze Data
-                    </button>
+                    <div class="text-center">
+                        <button id="analyze-btn" class="btn btn-success">
+                            <i class="bi bi-search"></i> Analyze Data
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -527,6 +890,57 @@
                 <button class="nav-link" id="chatbot-tab" data-bs-toggle="tab" data-bs-target="#chatbot-panel" type="button" role="tab" aria-controls="chatbot-panel" aria-selected="false">Ask the Data</button>
             </li>
         </ul>
+
+        <!-- Modern Full-Width Analytics Tabs -->
+        <div class="modern-tabs-container">
+            <div class="nav-tabs-wrapper">
+                <ul class="nav modern-nav-tabs" id="analyticsTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview-panel" type="button" role="tab" aria-controls="overview-panel" aria-selected="true">
+                            <i class="bi bi-grid-1x2-fill"></i>
+                            <span>Overview</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="timeseries-tab" data-bs-toggle="tab" data-bs-target="#timeseries-panel" type="button" role="tab" aria-controls="timeseries-panel" aria-selected="false">
+                            <i class="bi bi-graph-up-arrow"></i>
+                            <span>Time Series</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="network-tab" data-bs-toggle="tab" data-bs-target="#network-panel" type="button" role="tab" aria-controls="network-panel" aria-selected="false">
+                            <i class="bi bi-diagram-3-fill"></i>
+                            <span>Network</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="topics-tab" data-bs-toggle="tab" data-bs-target="#topics-panel" type="button" role="tab" aria-controls="topics-panel" aria-selected="false">
+                            <i class="bi bi-chat-square-text-fill"></i>
+                            <span>Topics</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="semantic-map-tab" data-bs-toggle="tab" data-bs-target="#semantic-map-panel" type="button" role="tab" aria-controls="semantic-map-panel" aria-selected="false">
+                            <i class="bi bi-map-fill"></i>
+                            <span>Semantic Map</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="coordinated-tab" data-bs-toggle="tab" data-bs-target="#coordinated-panel" type="button" role="tab" aria-controls="coordinated-panel" aria-selected="false">
+                            <i class="bi bi-people-fill"></i>
+                            <span>Coordinated Behavior</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="chatbot-tab" data-bs-toggle="tab" data-bs-target="#chatbot-panel" type="button" role="tab" aria-controls="chatbot-panel" aria-selected="false">
+                            <i class="bi bi-chat-dots-fill"></i>
+                            <span>Ask the Data</span>
+                        </button>
+                    </li>
+                </ul>
+                <div class="active-tab-indicator"></div>
+            </div>
+        </div>
 
         <!-- Tab Content -->
         <div class="tab-content" id="analyticsTabContent">
@@ -1106,5 +1520,38 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+
+    <!-- Add tab indicator JavaScript -->
+    <script>
+        // Function to position the active tab indicator
+        function positionTabIndicator() {
+            const activeTab = document.querySelector('.modern-nav-tabs .nav-link.active');
+            const tabIndicator = document.querySelector('.active-tab-indicator');
+            
+            if (activeTab && tabIndicator) {
+                tabIndicator.style.width = activeTab.offsetWidth + 'px';
+                tabIndicator.style.left = activeTab.offsetLeft + 'px';
+            }
+        }
+
+        // Initialize tab indicator
+        document.addEventListener('DOMContentLoaded', function() {
+            // Position indicator initially
+            positionTabIndicator();
+            
+            // Update indicator position when tabs are clicked
+            const tabLinks = document.querySelectorAll('.modern-nav-tabs .nav-link');
+            tabLinks.forEach(link => {
+                link.addEventListener('shown.bs.tab', function() {
+                    positionTabIndicator();
+                });
+            });
+            
+            // Adjust on window resize
+            window.addEventListener('resize', function() {
+                positionTabIndicator();
+            });
+        });
+    </script>
 </body>
 </html> 
