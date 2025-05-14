@@ -510,10 +510,46 @@ async function updateOverview(query) {
                     }
                     if (metrics.days_span) {
                         description += `. Data spans ${metrics.days_span} days`;
+                        
+                        // Add post frequency insight
+                        const postsPerDay = (metrics.total_posts / metrics.days_span).toFixed(1);
+                        description += ` (approximately ${postsPerDay} posts per day)`;
                     }
                     if (typeof metrics.avg_comments === 'number') {
                         description += ` with an average of ${metrics.avg_comments.toFixed(1)} comments per post`;
+                        
+                        // Contextual assessment of engagement level
+                        if (metrics.avg_comments > 30) {
+                            description += ` - indicating exceptionally high engagement`;
+                        } else if (metrics.avg_comments > 15) {
+                            description += ` - showing strong community interest`;
+                        } else if (metrics.avg_comments > 5) {
+                            description += ` - reflecting moderate discussion activity`;
+                        }
                     }
+                    
+                    // Add author concentration insights if data available
+                    if (metrics.unique_authors && metrics.total_posts) {
+                        const postsPerAuthor = (metrics.total_posts / metrics.unique_authors).toFixed(1);
+                        description += `. On average, each author contributed ${postsPerAuthor} posts`;
+                        
+                        // Community type assessment
+                        if (postsPerAuthor > 3) {
+                            description += `, suggesting a core group of dedicated contributors`;
+                        } else if (postsPerAuthor < 1.2) {
+                            description += `, indicating a diverse community with broad participation`;
+                        }
+                    }
+                    
+                    // Add sentiment if available
+                    if (metrics.sentiment_distribution) {
+                        const sentiments = metrics.sentiment_distribution;
+                        const topSentiment = Object.entries(sentiments).sort((a, b) => b[1] - a[1])[0];
+                        if (topSentiment) {
+                            description += `. Conversation tone appears predominantly ${topSentiment[0].toLowerCase()}`;
+                        }
+                    }
+                    
                     description += '.';
                     
                     // Update the DOM directly
@@ -526,6 +562,48 @@ async function updateOverview(query) {
             
             // Create extended metrics display
             let metricsContainer = document.getElementById('metrics-container');
+            
+            // Clear any existing extended metrics (beyond the 4 main metrics)
+            // Preserve only the main metrics row with the basic stats
+            const mainMetricsRow = metricsContainer.querySelector('.row.g-3');
+            metricsContainer.innerHTML = '';
+            
+            // Re-add the main metrics row
+            if (mainMetricsRow) {
+                metricsContainer.appendChild(mainMetricsRow);
+            } else {
+                // Create a new main metrics row if it doesn't exist
+                const newMainRow = document.createElement('div');
+                newMainRow.className = 'row g-3';
+                newMainRow.innerHTML = `
+                    <div class="col-6">
+                        <div class="stat-card">
+                            <div class="stat-value" id="total-posts">${metrics.total_posts || '-'}</div>
+                            <div class="stat-label">Total Posts</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="stat-card">
+                            <div class="stat-value" id="unique-authors">${metrics.unique_authors || '-'}</div>
+                            <div class="stat-label">Unique Authors</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="stat-card">
+                            <div class="stat-value" id="avg-comments">${typeof metrics.avg_comments === 'number' ? 
+                                metrics.avg_comments.toFixed(1) : metrics.avg_comments}</div>
+                            <div class="stat-label">Avg. Comments</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="stat-card">
+                            <div class="stat-value" id="time-span">${metrics.days_span || '-'}</div>
+                            <div class="stat-label">Days Span</div>
+                        </div>
+                    </div>
+                `;
+                metricsContainer.appendChild(newMainRow);
+            }
             
             // Add additional metrics rows if needed
             if (metrics.top_keywords && metrics.top_keywords.length > 0) {
