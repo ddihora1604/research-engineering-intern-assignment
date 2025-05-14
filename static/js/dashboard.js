@@ -3853,8 +3853,8 @@ async function updateSemanticMap(query) {
         // Update stats display
         document.getElementById('semantic-map-stats').innerHTML = `
             <strong>${data.total_posts}</strong> posts visualized | 
-            <strong>${data.topics.length}</strong> topic clusters | 
-            UMAP settings: neighbors=${data.umap_params.n_neighbors}, min_dist=${data.umap_params.min_dist}
+            <strong>${data.topics.length}</strong> topic clusters 
+            
         `;
         
         // Visualize the data
