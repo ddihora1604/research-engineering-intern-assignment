@@ -1106,32 +1106,19 @@
             <!-- Overview Tab -->
             <div class="tab-pane fade show active" id="overview-panel" role="tabpanel" aria-labelledby="overview-tab">
                 <div class="row">
-                    <!-- AI Summary Section -->
+                    <!-- Social Media Insights Section -->
                     <div class="col-md-8">
-                        <div class="chart-container">
+                        <div class="chart-container" style="height: 100%;">
                             <h3><i class="bi bi-bar-chart-line-fill"></i> Social Media Insights - Trends, Sentiments, and Discussions</h3>
                             <div id="ai-summary" class="insight-card">
                                 <p class="text-muted">Enter a search query to generate social media insights.</p>
-                            </div>
-                        </div>
-                        
-                        <!-- Data Story Section -->
-                        <div class="chart-container mt-4">
-                            <h3><i class="bi bi-journal-text"></i> A Comprehensive Data Story</h3>
-                            <div class="alert alert-info mb-3" id="data-story-description">
-                                <i class="bi bi-info-circle"></i> Creates a narrative analysis connecting key insights, trends, and patterns from your query into a comprehensive data story.
-                            </div>
-                            <div id="data-story" class="card">
-                                <div class="card-body">
-                                    <p class="text-muted">Enter a search query to generate a comprehensive data story.</p>
-                                </div>
                             </div>
                         </div>
                     </div>
                     
                     <!-- Key Metrics Section -->
                     <div class="col-md-4">
-                        <div class="chart-container">
+                        <div class="chart-container" style="height: 100%;">
                             <h3><i class="bi bi-clipboard-data-fill"></i> Key Metrics</h3>
                             <div class="alert alert-info mb-3" id="metrics-description">
                                 <i class="bi bi-info-circle"></i> Key statistics about posts, authors, engagement, and time span for your query results.
@@ -1168,7 +1155,25 @@
                     </div>
                 </div>
                 
-                <div class="row">
+                <!-- Data Story Section - Full Width -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="chart-container">
+                            <h3><i class="bi bi-journal-text"></i> A Comprehensive Data Story</h3>
+                            <div class="alert alert-info mb-3" id="data-story-description">
+                                <i class="bi bi-info-circle"></i> Creates a narrative analysis connecting key insights, trends, and patterns from your query into a comprehensive data story.
+                            </div>
+                            <div id="data-story" class="card">
+                                <div class="card-body">
+                                    <p class="text-muted">Enter a search query to generate a comprehensive data story.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Word Cloud and Top Contributors Section -->
+                <div class="row mt-4">
                     <!-- Word Cloud -->
                     <div class="col-md-6">
                         <div class="chart-container">
