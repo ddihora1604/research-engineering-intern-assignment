@@ -20,6 +20,7 @@ import traceback
 import math
 import glob
 import re
+import google.generativeai as genai  # Add import for Google's Generative AI library
 
 # Data connector framework for multiple platforms
 class SocialMediaConnector:
@@ -271,12 +272,27 @@ try:
         print("Groq API key found. Enhanced LLM insights will be available.")
     else:
         print("No Groq API key found. Set GROQ_API_KEY in environment or .env file for enhanced insights.")
+    
+    # Check for Google Gemini API key
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    has_gemini = GEMINI_API_KEY is not None and GEMINI_API_KEY != ""
+    if has_gemini:
+        try:
+            print("Gemini API key found. Enhanced chatbot functionality will be available.")
+            # Configure Gemini API
+            genai.configure(api_key=GEMINI_API_KEY)
+        except Exception as e:
+            print(f"Error configuring Gemini API: {e}")
+            has_gemini = False
+    else:
+        print("No Gemini API key found. Set GEMINI_API_KEY in environment or .env file for enhanced chatbot functionality.")
 except Exception as e:
     print(f"Error initializing models: {e}")
     t5_tokenizer = None
     t5_model = None
     semantic_model = None
     has_groq = False
+    has_gemini = False
 
 # Load dataset on startup
 def load_dataset():
@@ -1422,8 +1438,8 @@ def get_dynamic_description():
         if not has_groq or not GROQ_API_KEY:
             return jsonify({'description': default_description.get(section, """
                 <div class='description-content'>
-                    <h4 class='section-heading'>Data Analysis</h4>
-                    <p>This section analyzes data based on your query.</p>
+                    <h4 class='section-heading'>Community Distribution Analysis</h4>
+                    <p>Visualized pie chart of communities (or accounts) on the social media platform that are key contributors to the conversation about "{query}".</p>                                      
                 </div>
             """)})
         
@@ -1626,7 +1642,7 @@ def get_dynamic_description():
             # Fallback to default descriptions
             return jsonify({'description': default_description.get(section, """
                 <div class='description-content'>
-                    <h4 class='section-heading'>Data Analysis</h4>
+                    <h4 class='section-heading'>Community Distribution Analysis</h4>
                     <p>This section analyzes data based on your query.</p>
                 </div>
             """)})
@@ -1636,8 +1652,8 @@ def get_dynamic_description():
         return jsonify({
             'description': default_description.get(section, """
                 <div class='description-content'>
-                    <h4 class='section-heading'>Data Analysis</h4>
-                    <p>This section analyzes data based on your query.</p>
+                    <h4 class='section-heading'>Community Distribution Analysis</h4>
+                    <p>Visualized pie chart of communities (or accounts) on the social media platform that are key contributors to the conversation about "{query}".</p>
                 </div>
             """),
             'error': str(e)
@@ -1838,17 +1854,26 @@ def chatbot_response():
         lower_query = user_query.lower()
         
         # Check for trend-related queries
-        if any(word in lower_query for word in ['trend', 'change', 'over time', 'evolve', 'increase', 'decrease']):
+        if any(word in lower_query for word in ['trend', 'change', 'over time', 'evolve', 'increase', 'decrease', 'growth', 'decline', 'pattern']):
             intent = "trend"
         # Check for topic-related queries
-        elif any(word in lower_query for word in ['topic', 'theme', 'about', 'discuss']):
+        elif any(word in lower_query for word in ['topic', 'theme', 'about', 'discuss', 'talking about', 'conversation', 'subject', 'matter']):
             intent = "topic"
         # Check for community-related queries
-        elif any(word in lower_query for word in ['community', 'subreddit', 'group', 'people']):
+        elif any(word in lower_query for word in ['community', 'subreddit', 'group', 'people', 'user', 'member', 'author', 'contributor']):
             intent = "community"
         # Check for comparison queries
-        elif any(word in lower_query for word in ['compare', 'difference', 'versus', 'vs', 'similarities']):
+        elif any(word in lower_query for word in ['compare', 'difference', 'versus', 'vs', 'similarities', 'contrast', 'different', 'same']):
             intent = "comparison"
+        # Check for network analysis queries
+        elif any(word in lower_query for word in ['network', 'connections', 'relationship', 'interact']):
+            intent = "network"
+        # Check for insight-related queries
+        elif any(word in lower_query for word in ['insight', 'understand', 'analyze', 'summary']):
+            intent = "insights"
+        # Check for coordination-related queries
+        elif any(word in lower_query for word in ['coordinate', 'coordinated', 'campaign', 'organized']):
+            intent = "coordinated"
         
         # Extract potential search terms - this is a basic implementation
         # For a more robust solution, consider using NLP libraries like spaCy
@@ -1889,8 +1914,29 @@ def chatbot_response():
         
         # If still no substantial results, return a message about insufficient data
         if len(filtered_data) < 3:
+            html_response = f"""
+            <div class='chatbot-response'>
+                <h3>Search Results</h3>
+                <p>I couldn't find enough data about <strong>'{search_query}'</strong> in the dataset. This could be because:</p>
+                <ul>
+                    <li>The topic might not be extensively discussed in this dataset</li>
+                    <li>You might be using terms that differ from how people discuss this topic</li>
+                    <li>The topic may be referenced using different terminology</li>
+                </ul>
+                
+                <h4>Suggestions</h4>
+                <p>Try these approaches:</p>
+                <ol>
+                    <li>Use broader or more general search terms</li>
+                    <li>Check spelling of specific terms or names</li>
+                    <li>Try related topics or synonyms</li>
+                    <li>Remove specific qualifiers that might be limiting results</li>
+                </ol>
+            </div>
+            """
+            
             return jsonify({
-                'response': f"I couldn't find enough data about '{search_query}'. Could you try a different query or broader terms?",
+                'response': html_response,
                 'data_points': 0,
                 'suggestions': ['Try a broader topic', 'Check your spelling', 'Use fewer specific terms']
             })
@@ -2016,119 +2062,229 @@ def chatbot_response():
             except Exception as e:
                 print(f"Error in community analysis: {e}")
         
-        # Generate response using Groq API if available, otherwise use a template-based approach
+        # For network intent, get quick network statistics
+        if intent == "network":
+            try:
+                # Count interactions between authors
+                author_interactions = {}
+                
+                # Create a temporary copy for processing
+                interaction_df = filtered_data.copy()
+                
+                # Check if we have parent_id information
+                if 'parent_id' in interaction_df.columns:
+                    # Count direct replies
+                    reply_count = interaction_df['parent_id'].notna().sum()
+                    metrics['reply_count'] = reply_count
+                    
+                    # Get top authors by network centrality (simplified as post count)
+                    central_authors = interaction_df['author'].value_counts().head(5).to_dict()
+                    metrics['central_authors'] = central_authors
+            except Exception as e:
+                print(f"Error in network analysis: {e}")
+                
+        # Generate response using Gemini API if available, otherwise use a template-based approach
         response_text = ""
         visualization_suggestions = []
         
-        if has_groq and GROQ_API_KEY:
-            # Build a prompt based on intent and available metrics
-            context_str = f"Query: '{user_query}'\n\nAvailable data about '{search_query}':\n"
-            context_str += f"- {metrics['total_posts']} posts from {metrics['unique_authors']} unique authors\n"
-            context_str += f"- Date range: {metrics['time_range']['start'][:10]} to {metrics['time_range']['end'][:10]}\n"
-            context_str += f"- Top subreddits: {', '.join(list(metrics['top_subreddits'].keys())[:3])}\n"
+        if has_gemini and GEMINI_API_KEY:
+            # Build a comprehensive context object for the LLM
+            context_obj = {
+                "query": user_query,
+                "search_query": search_query,
+                "intent": intent,
+                "metrics": metrics,
+                "keywords": query_keywords
+            }
             
-            if 'avg_comments' in metrics:
-                context_str += f"- Average engagement: {metrics['avg_comments']:.1f} comments per post\n"
+            # Convert to string representation for the prompt
+            import json
+            context_str = json.dumps(context_obj, indent=2)
             
-            if 'top_keywords' in metrics and metrics['top_keywords']:
-                context_str += f"- Key terms: {', '.join(metrics['top_keywords'])}\n"
-            
-            if intent == "trend" and 'time_series' in metrics:
-                # Only add peak information if it exists
-                if 'peak_date' in metrics and 'peak_count' in metrics:
-                    context_str += f"- Peak activity on {metrics['peak_date']} with {metrics['peak_count']} posts\n"
-                if 'trend' in metrics:
-                    context_str += f"- Overall {metrics['trend']['direction']} trend\n"
-            
-            if intent == "topic" and 'topics' in metrics:
-                context_str += "- Main topics discussed:\n"
-                for topic in metrics['topics']:
-                    context_str += f"  * {', '.join(topic['words'][:5])}\n"
-            
-            # Construct the prompt for the LLM
-            prompt = f"""
-            You are a helpful data analyst assistant for Reddit data. Answer the following question based on the data provided:
-            
+            # Build a more enhanced prompt specifically for Gemini
+            gemini_prompt = f"""
+            You are an expert social media data analyst. Answer the following question based on the data provided, with your response formatted in well-structured HTML.
+
+            USER QUERY:
+            "{user_query}"
+
+            DATA CONTEXT:
             {context_str}
+
+            REQUIREMENTS:
+            1. Structure your response using proper HTML formatting:
+               - Use <h3> tags for main section headings (1-2 main sections)
+               - Use <h4> tags for subsection headings (2-4 subsections)
+               - Use <p> tags for paragraphs with detailed explanations
+               - Use <ul> and <li> tags for bullet point lists when providing multiple insights
+               - Use <ol> and <li> tags for numbered lists when sequence matters
+               - Use <strong> tags to highlight key numbers and important findings
+               - Wrap everything in a <div class='chatbot-response'> container
+
+            2. Include these elements in your response:
+               - A direct answer to the user's question that is comprehensive and detailed
+               - At least 3-5 specific insights backed by the data metrics
+               - Multiple data points and statistics from the metrics (use exact numbers) 
+               - Analysis of patterns, trends, or relationships in the data
+               - Comparisons between different aspects of the data when relevant
+
+            3. Make your response detailed and informative (aim for 300-500 words)
+               - Ensure your response is comprehensive and answers all aspects of the query
+               - Include nuanced analysis that considers multiple perspectives
+               - Be specific rather than general in your observations
             
-            Provide a concise, informative response that directly answers the user's question with specific insights from the data.
-            Include 1-3 relevant metrics from the data where appropriate.
-            Keep your response under 120 words.
+            4. BE PRECISE: Use exact numbers from the data when available. Include dates, counts, percentages, and other metrics.
+            
+            Do NOT include any redirections or navigation links to other dashboard sections.
+            
+            IMPORTANT: Do not wrap your HTML in code blocks or markdown formatting. Provide the HTML directly without any ```html or ``` tags surrounding it.
+            Do not prefix your response with any explanation or introduction. Start directly with the <div> tag.
+            
+            Return ONLY the HTML content without any additional explanation, markdown, or code blocks.
             """
             
-            # Call Groq API
-            groq_api_url = "https://api.groq.com/openai/v1/chat/completions"
-            headers = {
-                "Authorization": f"Bearer {GROQ_API_KEY}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "model": "llama3-8b-8192",
-                "messages": [
-                    {"role": "system", "content": "You are a data analyst assistant that provides concise, helpful insights from Reddit data."},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.7,
-                "max_tokens": 200
-            }
-            
             try:
-                response = requests.post(groq_api_url, headers=headers, json=payload)
-                if response.status_code == 200:
-                    result = response.json()
-                    response_text = result["choices"][0]["message"]["content"].strip()
+                # Generate response using Gemini API
+                gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+                gemini_response = gemini_model.generate_content(gemini_prompt)
+                
+                if gemini_response:
+                    response_text = gemini_response.text.strip()
+                    print(f"Raw Gemini response: {response_text[:100]}...")  # Print first 100 chars for debugging
+                    
+                    # Clean up the response - remove any leading/trailing quotes or backticks
+                    # that might be causing the raw HTML to be displayed
+                    response_text = response_text.replace('```html', '').replace('```', '')
+                    response_text = response_text.strip('"\'`')
+                    print(f"Cleaned response: {response_text[:100]}...")  # Print cleaned response
+                    
+                    # Verify we got HTML and not plain text
+                    if not response_text.startswith("<div") and not response_text.startswith("<h"):
+                        print("Response doesn't start with HTML tags, wrapping in div")
+                        # Wrap in proper HTML if the model didn't provide it
+                        response_text = f"""
+                        <div class='chatbot-response'>
+                            <h3>Analysis Results</h3>
+                            <p>{response_text}</p>
+                        </div>
+                        """
                 else:
                     # Fallback to template response if API fails
-                    print(f"Groq API error: {response.status_code} - {response.text}")
+                    print(f"Gemini API error: No response received")
                     response_text = generate_template_response(intent, metrics, search_query)
+                    # Add HTML structure to template response
+                    response_text = enhance_response_with_html_no_redirects(response_text, intent)
             except Exception as e:
-                print(f"Error calling Groq API: {e}")
+                print(f"Error calling Gemini API: {e}")
                 response_text = generate_template_response(intent, metrics, search_query)
+                # Add HTML structure to template response
+                response_text = enhance_response_with_html_no_redirects(response_text, intent)
         else:
-            # Use template-based response if Groq API is not available
+            # Use template-based response if Gemini API is not available
             response_text = generate_template_response(intent, metrics, search_query)
+            # Add HTML structure to template response
+            response_text = enhance_response_with_html_no_redirects(response_text, intent)
         
-        # Add visualization suggestions based on intent and data
+        # Determine visualization suggestions based on intent
         if intent == "trend":
-            visualization_suggestions.append({
-                'type': 'time_series',
-                'title': 'Time Series Analysis',
-                'description': 'View post frequency over time to see trends and patterns'
-            })
+            visualization_suggestions = [
+                {
+                    'type': 'timeseries',
+                    'title': 'Time Series Analysis',
+                    'description': 'View post frequency over time to see trends and patterns'
+                },
+                {
+                    'type': 'events',
+                    'title': 'Event Correlation',
+                    'description': 'See how real-world events correlate with conversation peaks'
+                }
+            ]
+        elif intent == "topic":
+            visualization_suggestions = [
+                {
+                    'type': 'topics',
+                    'title': 'Topic Analysis',
+                    'description': 'Explore the main topics and themes in the data'
+                },
+                {
+                    'type': 'word_cloud',
+                    'title': 'Word Cloud', 
+                    'description': 'See the most frequent terms used in discussions'
+                },
+                {
+                    'type': 'semantic_map',
+                    'title': 'Semantic Map', 
+                    'description': 'See how posts are related to each other in semantic space'
+                }
+            ]
+        elif intent == "community":
+            visualization_suggestions = [
+                {
+                    'type': 'contributors',
+                    'title': 'Top Contributors',
+                    'description': 'See which users are most active in discussions'
+                },
+                {
+                    'type': 'network',
+                    'title': 'Network Analysis',
+                    'description': 'Explore connections between users discussing this topic'
+                }
+            ]
+        elif intent == "network":
+            visualization_suggestions = [
+                {
+                    'type': 'network',
+                    'title': 'Network Analysis',
+                    'description': 'View the interaction network between authors'
+                },
+                {
+                    'type': 'coordinated',
+                    'title': 'Coordinated Behavior',
+                    'description': 'Detect potentially coordinated posting patterns'
+                }
+            ]
+        elif intent == "insights":
+            visualization_suggestions = [
+                {
+                    'type': 'ai_insights',
+                    'title': 'AI Insights',
+                    'description': 'Get AI-powered analysis of the conversation'
+                },
+                {
+                    'type': 'data_story',
+                    'title': 'Data Story',
+                    'description': 'View a narrative analysis of the discussion'
+                }
+            ]
+        elif intent == "coordinated":
+            visualization_suggestions = [
+                {
+                    'type': 'coordinated',
+                    'title': 'Coordinated Behavior',
+                    'description': 'Analyze potential coordination in posting behavior'
+                },
+                {
+                    'type': 'network',
+                    'title': 'Network Analysis',
+                    'description': 'See connections between potentially coordinated users'
+                }
+            ]
+        else:
+            # Generic/general intent
+            visualization_suggestions = [
+                {
+                    'type': 'overview',
+                    'title': 'Data Overview',
+                    'description': 'See a comprehensive summary of all available data'
+                },
+                {
+                    'type': 'ai_insights',
+                    'title': 'AI Insights',
+                    'description': 'Get AI-powered analysis of the conversation'
+                }
+            ]
         
-        if intent == "topic":
-            visualization_suggestions.append({
-                'type': 'topics',
-                'title': 'Topic Analysis',
-                'description': 'Explore the main topics and themes in the data'
-            })
-            visualization_suggestions.append({
-                'type': 'semantic_map',
-                'title': 'Semantic Map', 
-                'description': 'See how posts are related to each other in semantic space'
-            })
-        
-        if intent == "community":
-            visualization_suggestions.append({
-                'type': 'community_distribution',
-                'title': 'Community Distribution',
-                'description': 'See which subreddits are most active for this topic'
-            })
-            visualization_suggestions.append({
-                'type': 'network',
-                'title': 'User Network Analysis',
-                'description': 'Explore connections between users discussing this topic'
-            })
-        
-        # Add a generic visualization suggestion for all intents
-        if len(visualization_suggestions) < 2:
-            visualization_suggestions.append({
-                'type': 'overview',
-                'title': 'Data Overview',
-                'description': 'See a comprehensive summary of all available data'
-            })
-        
-        # Return the response with metrics and visualizations
+        # Return the enhanced response with metrics and visualizations
         return jsonify({
             'response': response_text,
             'metrics': metrics,
@@ -2176,6 +2332,76 @@ def generate_template_response(intent, metrics, search_query):
     
     # Default/general response
     return f"I analyzed {metrics['total_posts']} posts about '{search_query}' from {metrics['unique_authors']} authors. Key terms include {', '.join(metrics.get('top_keywords', [])[:5])}{'. Most discussions occurred in ' + ', '.join(list(metrics['top_subreddits'].keys())[:2]) if metrics['top_subreddits'] else ''}."
+
+def enhance_response_with_html(text, intent):
+    """Enhance a plain text response with HTML structure and relevant dashboard links"""
+    
+    # Create section redirections based on intent
+    redirections = []
+    
+    if intent == "trend":
+        redirections.append('<a href="#timeseries" class="dashboard-link" data-section="timeseries">View Time Series Analysis</a>')
+        redirections.append('<a href="#events" class="dashboard-link" data-section="events">View Event Correlation</a>')
+    elif intent == "topic":
+        redirections.append('<a href="#topics" class="dashboard-link" data-section="topics">View Topic Analysis</a>')
+        redirections.append('<a href="#word_cloud" class="dashboard-link" data-section="word_cloud">View Word Cloud</a>')
+    elif intent == "community":
+        redirections.append('<a href="#contributors" class="dashboard-link" data-section="contributors">View Top Contributors</a>')
+        redirections.append('<a href="#network" class="dashboard-link" data-section="network">View Network Analysis</a>')
+    elif intent == "network":
+        redirections.append('<a href="#network" class="dashboard-link" data-section="network">View Network Analysis</a>')
+    elif intent == "insights":
+        redirections.append('<a href="#ai_insights" class="dashboard-link" data-section="ai_insights">View AI Insights</a>')
+    elif intent == "coordinated":
+        redirections.append('<a href="#coordinated" class="dashboard-link" data-section="coordinated">View Coordinated Behavior Analysis</a>')
+    elif intent == "engagement":
+        redirections.append('<a href="#contributors" class="dashboard-link" data-section="contributors">View Top Contributors</a>')
+        redirections.append('<a href="#timeseries" class="dashboard-link" data-section="timeseries">View Engagement Over Time</a>')
+    elif intent == "sentiment":
+        redirections.append('<a href="#topics" class="dashboard-link" data-section="topics">View Topic Analysis</a>')
+        redirections.append('<a href="#ai_insights" class="dashboard-link" data-section="ai_insights">View AI-Generated Insights</a>')
+    elif intent == "time_specific":
+        redirections.append('<a href="#timeseries" class="dashboard-link" data-section="timeseries">View Time Series Analysis</a>')
+        redirections.append('<a href="#events" class="dashboard-link" data-section="events">View Event Correlation</a>')
+    else:
+        # General/default redirections
+        redirections.append('<a href="#overview" class="dashboard-link" data-section="overview">View Data Overview</a>')
+        redirections.append('<a href="#ai_insights" class="dashboard-link" data-section="ai_insights">View AI Insights</a>')
+    
+    # Build HTML response
+    html = f"""
+    <div class='chatbot-response'>
+        <h3>Analysis Results</h3>
+        <p>{text}</p>
+        
+        <h4>Explore Further</h4>
+        <ul>
+            <li>{redirections[0]}</li>
+    """
+    
+    # Add additional redirections
+    for link in redirections[1:]:
+        html += f"<li>{link}</li>"
+    
+    html += """
+        </ul>
+    </div>
+    """
+    
+    return html
+
+def enhance_response_with_html_no_redirects(text, intent):
+    """Enhance a plain text response with HTML structure without any redirections or links"""
+    
+    # Build HTML response without any redirections
+    html = f"""
+    <div class='chatbot-response'>
+        <h3>Analysis Results</h3>
+        <p>{text}</p>
+    </div>
+    """
+    
+    return html
 
 # Event-related functionality
 # Dictionary to store manually curated event data

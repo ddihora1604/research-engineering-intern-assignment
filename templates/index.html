@@ -960,6 +960,63 @@
             max-height: none;
             overflow: visible;
         }
+        
+        /* Chatbot enhanced styling */
+        .assistant-message .dashboard-link {
+            display: inline-block;
+            padding: 4px 12px;
+            background-color: var(--primary-light);
+            color: var(--primary-dark);
+            border-radius: 16px;
+            text-decoration: none;
+            margin: 3px 0;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            border: 1px solid rgba(74, 111, 165, 0.3);
+        }
+        
+        .assistant-message .dashboard-link:hover {
+            background-color: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .chatbot-response h3, .chatbot-response h4 {
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+            color: var(--primary-dark);
+        }
+        
+        .chatbot-response h3 {
+            font-size: 1.2rem;
+            border-bottom: 1px solid var(--primary-light);
+            padding-bottom: 0.3em;
+        }
+        
+        .chatbot-response h4 {
+            font-size: 1.05rem;
+        }
+        
+        .chatbot-response ul, .chatbot-response ol {
+            padding-left: 1.5em;
+            margin-bottom: 1em;
+        }
+        
+        .chatbot-response p {
+            margin-bottom: 0.8em;
+        }
+        
+        /* Tab highlight effect */
+        .highlight-tab {
+            animation: pulse-tab 2s ease;
+        }
+        
+        @keyframes pulse-tab {
+            0% { background-color: transparent; }
+            30% { background-color: var(--accent-light); }
+            100% { background-color: transparent; }
+        }
     </style>
 </head>
 <body>
@@ -1222,8 +1279,19 @@
             <!-- Network Analysis Tab -->
             <div class="tab-pane fade" id="network-panel" role="tabpanel" aria-labelledby="network-tab">
                 <div class="row">
-                    <div class="col-md-8">
-                <div class="chart-container">
+                    <div class="col-12">
+                        <div class="chart-container">
+                            <h3><i class="bi bi-pie-chart-fill"></i> Community Distribution</h3>
+                            <div class="alert alert-info mb-3" id="community-distribution-description">
+                                <i class="bi bi-info-circle"></i> Shows the relative proportions of different communities or subreddits represented in your search results.
+                            </div>
+                            <div id="community-distribution"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="chart-container">
                             <h3><i class="bi bi-node-plus-fill"></i> Network Analysis</h3>
                             <div class="alert alert-info mb-3" id="network-description">
                                 <i class="bi bi-info-circle"></i> Maps connections between users based on their interactions, revealing community structure and influence patterns.
@@ -1301,13 +1369,13 @@
                             <div class="mt-3 mb-4" id="network-metrics"></div>
                             
                             <div id="network-graph-container" class="position-relative">
-                    <div id="network-graph"></div>
+                                <div id="network-graph"></div>
                             </div>
                             
                             <div class="mt-3">
                                 <div class="card">
                                     <div class="card-body">
-                                        <h5><i class="bi bi-info-circle"></i> How to Use</h5>
+                                        <h5><i class="bi bi-info-circle"></i> How to Use?</h5>
                                         <ul>
                                             <li>In <strong>User Interaction Network</strong> mode, edges represent comment interactions between users.</li>
                                             <li>In <strong>Content Sharing Network</strong> mode, edges represent users sharing similar keywords, hashtags, or URLs.</li>
@@ -1318,15 +1386,6 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="chart-container">
-                            <h3><i class="bi bi-pie-chart-fill"></i> Community Distribution</h3>
-                            <div class="alert alert-info mb-3" id="community-distribution-description">
-                                <i class="bi bi-info-circle"></i> Shows the relative proportions of different communities or subreddits represented in your search results.
-                            </div>
-                            <div id="community-distribution"></div>
                         </div>
                     </div>
                 </div>
@@ -1455,7 +1514,7 @@
                     <div class="mt-3">
                         <div class="card">
                             <div class="card-body">
-                                <h5><i class="bi bi-info-circle"></i> How to Use</h5>
+                                <h5><i class="bi bi-info-circle"></i> How to Use?</h5>
                                 <ul>
                                     <li>Each point represents a post in the semantic space, positioned by similarity of content</li>
                                     <li>Points that are closer together cover similar topics or themes</li>
@@ -1523,25 +1582,13 @@
             <!-- Chatbot Tab -->
             <div class="tab-pane fade" id="chatbot-panel" role="tabpanel" aria-labelledby="chatbot-tab">
                 <div class="chart-container">
-                    <h3><i class="bi bi-robot"></i> Interactive Data Assistant</h3>
+                    <h3><i class="bi bi-robot"></i> Interactive Chatbot</h3>
                     <div class="alert alert-info mb-3">
-                        <i class="bi bi-info-circle"></i> Ask questions about the dataset to get real-time insights. Try questions about trends, topics, communities, or specific themes.
+                        <i class="bi bi-info-circle"></i> Ask questions about the trends, topics, communities, or specific themes across social media platforms.
                     </div>
                     
                     <!-- Chat Messages Area -->
-                    <div id="chat-messages" style="height: 400px; overflow-y: auto; border: 1px solid var(--neutral-color); border-radius: 8px; padding: 16px; margin-bottom: 16px; background-color: var(--light-color);">
-                        <div class="system-message">
-                            <div class="message-content">
-                                <p>Hello! I'm your data assistant. Ask me anything about the Reddit dataset and I'll provide insights based on data analysis.</p>
-                                <p class="small text-muted">Try questions like:</p>
-                                <ul class="small text-muted">
-                                    <li>"What are the main topics people discuss about climate change?"</li>
-                                    <li>"How did conversations about COVID vaccines trend over time?"</li>
-                                    <li>"Which communities talk most about cryptocurrency?"</li>
-                                    <li>"What themes are popular in discussions about AI?"</li>
-                                </ul>
-                            </div>
-                        </div>
+                    <div id="chat-messages" style="overflow-y: auto; border: 1px solid var(--neutral-color); border-radius: 8px; padding: 16px; margin-bottom: 16px; background-color: var(--light-color);">
                     </div>
                     
                     <!-- Chat Input Area -->
@@ -1558,13 +1605,7 @@
                         </div>
                     </div>
                     
-                    <!-- Visualization Suggestions -->
-                    <div id="viz-suggestions" class="mt-4" style="display: none;">
-                        <h5 class="mb-3">Suggested Visualizations</h5>
-                        <div id="viz-suggestions-content" class="row g-3">
-                            <!-- Will be filled dynamically -->
-                        </div>
-                    </div>
+                    <!-- Visualization Suggestions
                     
                     <!-- Related Metrics -->
                     <div id="related-metrics" class="mt-4" style="display: none;">

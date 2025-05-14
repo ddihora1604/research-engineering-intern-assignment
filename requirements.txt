@@ -19,3 +19,4 @@ community
 umap-learn
 sentence-transformers
 scipy
+google-generativeai

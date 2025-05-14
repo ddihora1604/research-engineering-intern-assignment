@@ -2081,18 +2081,6 @@ async function updateNetwork(query) {
                 );
             });
         
-        // Add node labels for top nodes
-        svg.append('g')
-            .selectAll('text')
-            .data(nodes.slice(0, 10)) // Only label top 10 nodes
-            .enter()
-            .append('text')
-            .attr('x', d => d.x + 8)
-            .attr('y', d => d.y + 3)
-            .text(d => d.id)
-            .attr('font-size', '8px')
-            .attr('fill', '#333');
-            
         // Add double-click handler to reset highlight
         svg.on('dblclick', function() {
             hideNodeDetails();
@@ -2117,11 +2105,6 @@ async function updateNetwork(query) {
             node
                 .attr('cx', d => d.x)
                 .attr('cy', d => d.y);
-            
-            // Update label positions
-            svg.selectAll('text')
-                .attr('x', d => d.x + 8)
-                .attr('y', d => d.y + 3);
         });
     }
     
@@ -2863,18 +2846,6 @@ async function updateCoordinatedBehavior() {
         node.append('title')
             .text(d => `User: ${d.id}\nPosts: ${d.posts_count || 'unknown'}\nInvolved in ${d.coordinated_groups_count || 0} coordinated groups`);
         
-        // Add labels to nodes but only for ones with high involvement
-        g.append('g')
-            .selectAll('text')
-            .data(data.network.nodes.filter(d => (d.coordinated_groups_count || 0) > 1))
-            .enter()
-            .append('text')
-            .attr('dx', 12)
-            .attr('dy', '.35em')
-            .text(d => d.id)
-            .style('font-size', '10px')
-            .style('pointer-events', 'none');
-        
         // Add legend for node size and color
         const legend = svg.append('g')
             .attr('transform', 'translate(20, 20)');
@@ -2918,10 +2889,6 @@ async function updateCoordinatedBehavior() {
             node
                 .attr('cx', d => d.x = Math.max(nodeSize(d.coordinated_groups_count || 1), Math.min(width - nodeSize(d.coordinated_groups_count || 1), d.x)))
                 .attr('cy', d => d.y = Math.max(nodeSize(d.coordinated_groups_count || 1), Math.min(height - nodeSize(d.coordinated_groups_count || 1), d.y)));
-            
-            g.selectAll('text')
-                .attr('x', d => d.x)
-                .attr('y', d => d.y);
         });
         
         // Drag functions
@@ -4150,49 +4117,27 @@ async function updateTopicEvolution(query) {
 // Community Distribution Pie Chart
 async function updateCommunityDistributionPieChart(query) {
     try {
-        // We'll use the top contributors API and enhance it to include community data
-        const response = await fetch(`/api/top_contributors?query=${encodeURIComponent(query)}&limit=20`);
-        if (!response.ok) {
-            throw new Error(`Request failed with status: ${response.status}`);
-        }
+        // Get top subreddits from API
+        const response = await fetch(`/api/top_contributors?query=${encodeURIComponent(query)}&limit=15`);
+        const data = await response.json();
         
-        const contributorData = await response.json();
-        
-        // Also fetch AI summary data which contains subreddit distribution
-        const summaryResponse = await fetch(`/api/ai_summary?query=${encodeURIComponent(query)}`);
-        if (!summaryResponse.ok) {
-            throw new Error(`Summary request failed with status: ${summaryResponse.status}`);
-        }
-        
-        const summaryData = await summaryResponse.json();
-        
-        // Extract subreddit data from summary if available
+        // Format data for pie chart
         let subredditData = [];
-        if (summaryData && summaryData.metrics && summaryData.metrics.top_subreddits) {
-            subredditData = Object.entries(summaryData.metrics.top_subreddits).map(([name, count]) => ({
-                name,
-                count
+        
+        if (data && data.length > 0) {
+            // If we have author data, try to process it as subreddit data
+            subredditData = data.map(item => ({
+                name: item.author.includes('/') ? item.author : item.author.trim(),
+                count: item.count
             }));
         } else {
-            // If no subreddit data in summary, create placeholder message
-            document.getElementById('community-distribution').innerHTML = 
-                '<div class="alert alert-info">No community distribution data available for this query.</div>';
+            // Fallback to empty data
+            document.getElementById('community-distribution').innerHTML =
+                '<div class="alert alert-warning">No community data available for this query</div>';
             return;
         }
         
-        // Add "Other" category if we have more than 7 subreddits to keep chart readable
-        if (subredditData.length > 7) {
-            const topSubreddits = subredditData.slice(0, 6);
-            const otherSubreddits = subredditData.slice(6);
-            const otherCount = otherSubreddits.reduce((sum, item) => sum + item.count, 0);
-            
-            subredditData = [
-                ...topSubreddits,
-                { name: 'Other Communities', count: otherCount }
-            ];
-        }
-        
-        // Sort by count
+        // Only keep top 10 communities, group others into "Other"
         subredditData.sort((a, b) => b.count - a.count);
         
         // Clear previous chart
@@ -4201,7 +4146,7 @@ async function updateCommunityDistributionPieChart(query) {
         const container = document.getElementById('community-distribution');
         const width = container.clientWidth || 600;
         const height = Math.min(500, width * 0.8);
-        const radius = Math.min(width, height) / 2 - 30;
+        const radius = Math.min(width, height) / 2 - 40; // Increased margin for labels
         
         // Create SVG
         const svg = d3.select('#community-distribution')
@@ -4210,159 +4155,254 @@ async function updateCommunityDistributionPieChart(query) {
             .attr('height', height)
             .append('g')
             .attr('transform', `translate(${width / 2},${height / 2})`);
+            
+        // Calculate total posts for percentage display
+        const totalPosts = subredditData.reduce((sum, item) => sum + item.count, 0);
         
-        // Set color scale
+        // Group smaller communities into "Other" if they are less than 2% of total
+        const threshold = totalPosts * 0.02;
+        let processedData = [];
+        let otherCount = 0;
+        
+        subredditData.forEach(item => {
+            if (item.count >= threshold) {
+                processedData.push(item);
+            } else {
+                otherCount += item.count;
+            }
+        });
+        
+        // Add "Other" category if we have grouped communities
+        if (otherCount > 0) {
+            processedData.push({
+                name: "Other",
+                count: otherCount
+            });
+        }
+        
+        // Set color scale using dashboard theme colors
+        const themeColors = [
+            '#4a6fa5', // --primary-color
+            '#6b9080', // --secondary-color
+            '#ee6c4d', // --accent-color
+            '#2c4674', // --primary-dark
+            '#d5e3f6', // --primary-light
+            '#e3f0ea', // --secondary-light
+            '#f9e5dc', // --accent-light
+            '#293241', // --dark-color
+            '#6c757d', // --text-secondary
+            '#93a8c7', // Custom shade
+            '#8bb09f', // Custom shade
+            '#f28e73'  // Custom shade
+        ];
+        
         const color = d3.scaleOrdinal()
-            .domain(subredditData.map(d => d.name))
-            .range(d3.schemeCategory10);
+            .domain(processedData.map(d => d.name))
+            .range(themeColors);
         
         // Compute the position of each group on the pie
         const pie = d3.pie()
             .value(d => d.count)
             .sort(null); // Keep the original order
         
-        const pieData = pie(subredditData);
+        const pieData = pie(processedData);
         
         // Shape helper to build arcs
         const arc = d3.arc()
-            .innerRadius(radius * 0.4) // Create a donut chart
-            .outerRadius(radius);
+            .innerRadius(radius * 0.5) // Slightly larger inner radius for more modern look
+            .outerRadius(radius)
+            .cornerRadius(3); // Slightly rounded corners for a modern look
         
-        // Another arc for labels
+        // Arc for hover effect
+        const hoverArc = d3.arc()
+            .innerRadius(radius * 0.48) // Slightly larger inner radius for hover effect
+            .outerRadius(radius * 1.03)
+            .cornerRadius(3);
+            
+        // Another arc for labels (not used for rendering labels, but kept for calculations)
         const outerArc = d3.arc()
             .innerRadius(radius * 1.1)
             .outerRadius(radius * 1.1);
         
-        // Build the pie chart
-        const slices = svg.selectAll('path')
+        // Create a group for the donut chart
+        const donutGroup = svg.append('g');
+        
+        // Build the pie chart with animations
+        const slices = donutGroup.selectAll('path')
             .data(pieData)
             .enter()
             .append('path')
             .attr('d', arc)
             .attr('fill', d => color(d.data.name))
             .attr('stroke', 'white')
-            .style('stroke-width', '2px')
-            .style('opacity', 0.8)
+            .style('stroke-width', '1.5px')
+            .style('opacity', 0.9)
+            .style('transition', 'opacity 0.3s, filter 0.3s')
+            // Add entrance animation
+            .style('opacity', 0)
+            .transition()
+            .duration(800)
+            .delay((d, i) => i * 50)
+            .style('opacity', 0.9);
+            
+        // Add hover effects after the transition
+        donutGroup.selectAll('path')
             .on('mouseover', function(event, d) {
+                // Highlight the hovered slice
                 d3.select(this)
                     .style('opacity', 1)
-                    .style('stroke-width', '3px')
+                    .style('filter', 'drop-shadow(0px 3px 5px rgba(0,0,0,0.2))')
                     .transition()
                     .duration(200)
-                    .attr('d', d3.arc()
-                        .innerRadius(radius * 0.4)
-                        .outerRadius(radius * 1.05));
+                    .attr('d', hoverArc);
+                
+                // Dim other slices
+                donutGroup.selectAll('path')
+                    .filter(path => path !== d)
+                    .style('opacity', 0.6);
+                
+                // Update tooltip with detailed information
+                tooltip.transition()
+                    .duration(200)
+                    .style('opacity', 0.95);
+                    
+                const percentage = Math.round((d.data.count / totalPosts) * 100);
+                tooltip.html(`
+                    <div style="font-weight: bold; margin-bottom: 5px;">${d.data.name}</div>
+                    <div>Posts: ${d.data.count}</div>
+                    <div>Percentage: ${percentage}%</div>
+                `)
+                .style('left', (event.pageX + 10) + 'px')
+                .style('top', (event.pageY - 28) + 'px');
                 
                 // Show percentage in center
                 centerText.text(`${d.data.name}`);
-                centerSubText.text(`${d.data.count} posts (${Math.round(d.data.count / totalPosts * 100)}%)`);
+                centerSubText.text(`${d.data.count} posts (${percentage}%)`);
+                centerTextGroup.style('opacity', 1);
             })
             .on('mouseout', function() {
+                // Restore the slice to normal
                 d3.select(this)
-                    .style('opacity', 0.8)
-                    .style('stroke-width', '2px')
+                    .style('opacity', 0.9)
+                    .style('filter', 'none')
                     .transition()
                     .duration(200)
                     .attr('d', arc);
+                
+                // Restore other slices
+                donutGroup.selectAll('path')
+                    .style('opacity', 0.9);
+                
+                // Hide tooltip
+                tooltip.transition()
+                    .duration(500)
+                    .style('opacity', 0);
                 
                 // Reset center text
                 centerText.text('Community');
                 centerSubText.text('Distribution');
             });
-        
-        // Calculate total posts for percentage display
-        const totalPosts = subredditData.reduce((sum, item) => sum + item.count, 0);
-        
+            
+        // Create a group for the center text
+        const centerTextGroup = svg.append('g')
+            .style('opacity', 0.7)
+            .on('mouseover', function() {
+                centerTextGroup.style('opacity', 1);
+            })
+            .on('mouseout', function() {
+                centerTextGroup.style('opacity', 0.7);
+            });
+            
         // Add hoverable center text
-        const centerText = svg.append('text')
+        const centerText = centerTextGroup.append('text')
             .attr('text-anchor', 'middle')
             .attr('dy', '0em')
             .style('font-size', '1.3em')
             .style('font-weight', 'bold')
+            .style('fill', 'var(--primary-dark)')
             .text('Community');
         
-        const centerSubText = svg.append('text')
+        const centerSubText = centerTextGroup.append('text')
             .attr('text-anchor', 'middle')
             .attr('dy', '1.5em')
             .style('font-size', '1em')
+            .style('fill', 'var(--text-secondary)')
             .text('Distribution');
-        
-        // Add a title
-        svg.append('text')
-            .attr('x', 0)
-            .attr('y', -height/2 + 20)
-            .attr('text-anchor', 'middle')
-            .style('font-size', '16px')
-            .style('font-weight', 'bold')
-            .text(`Community Distribution for "${query}"`);
-        
-        // Add labels with lines connecting to slices
-        svg.selectAll('polyline')
-            .data(pieData)
-            .enter()
-            .append('polyline')
-            .attr('stroke', 'black')
-            .style('fill', 'none')
-            .attr('stroke-width', 1)
-            .attr('points', function(d) {
-                const pos = outerArc.centroid(d);
-                pos[0] = radius * 0.95 * (midAngle(d) < Math.PI ? 1 : -1);
-                return [arc.centroid(d), outerArc.centroid(d), pos];
-            });
-        
-        svg.selectAll('text.label')
-            .data(pieData)
-            .enter()
-            .append('text')
-            .attr('class', 'label')
-            .attr('dy', '.35em')
-            .attr('transform', function(d) {
-                const pos = outerArc.centroid(d);
-                pos[0] = radius * (midAngle(d) < Math.PI ? 1.05 : -1.05);
-                return `translate(${pos})`;
-            })
-            .style('text-anchor', d => midAngle(d) < Math.PI ? 'start' : 'end')
-            .style('font-size', '12px')
-            .text(d => {
-                const percent = Math.round(d.data.count / totalPosts * 100);
-                // Only show label if slice is big enough
-                return percent > 3 ? `r/${d.data.name} (${percent}%)` : '';
-            });
-        
+            
+        // Add tooltip div for hover details
+        const tooltip = d3.select('#community-distribution')
+            .append('div')
+            .attr('class', 'tooltip')
+            .style('opacity', 0)
+            .style('position', 'absolute')
+            .style('background-color', 'white')
+            .style('border', '1px solid #ddd')
+            .style('border-radius', '5px')
+            .style('padding', '10px')
+            .style('box-shadow', '0 2px 4px rgba(0,0,0,0.1)')
+            .style('pointer-events', 'none')
+            .style('font-size', '14px')
+            .style('z-index', 1000);
+            
         // Helper function to compute the angle in the middle of an arc
         function midAngle(d) {
             return d.startAngle + (d.endAngle - d.startAngle) / 2;
         }
+            
+        // Create alternative side legend with scrollable container
+        const legendContainer = svg.append('foreignObject')
+            .attr('x', -width/2 + 10)
+            .attr('y', -height/2 + 40)
+            .attr('width', width/4)
+            .attr('height', height - 80)
+            .append('xhtml:div')
+            .style('height', '100%')
+            .style('overflow-y', 'auto')
+            .style('padding-right', '10px');
+            
+        const legendHTML = processedData.map((item, i) => {
+            const percent = Math.round(item.count / totalPosts * 100);
+            return `
+                <div style="display: flex; align-items: center; margin-bottom: 8px; font-size: 12px; opacity: 0; animation: fadeIn 0.3s forwards ${i * 100 + 600}ms;">
+                    <div style="width: 12px; height: 12px; background-color: ${color(item.name)}; margin-right: 8px; border-radius: 2px;"></div>
+                    <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80%;">
+                        ${item.name} (${percent}%)
+                    </div>
+                </div>
+            `;
+        }).join('');
         
-        // Add legend
-        const legend = svg.selectAll('.legend')
-            .data(pieData)
-            .enter()
-            .append('g')
-            .attr('class', 'legend')
-            .attr('transform', (d, i) => `translate(-${width/2 - 20}, ${i * 20 - height/2 + 50})`);
-        
-        legend.append('rect')
-            .attr('width', 15)
-            .attr('height', 15)
-            .attr('fill', d => color(d.data.name));
-        
-        legend.append('text')
-            .attr('x', 20)
-            .attr('y', 12.5)
-            .attr('font-size', '12px')
-            .text(d => {
-                const maxLength = 20;
-                const name = d.data.name.length > maxLength ? 
-                    d.data.name.substring(0, maxLength) + '...' : d.data.name;
-                return `r/${name} (${d.data.count})`;
-            });
+        legendContainer.html(`
+            <style>
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(5px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+            </style>
+            <div style="font-weight: bold; margin-bottom: 10px; font-size: 13px;">Communities:</div>
+            ${legendHTML}
+        `);
         
         // Update the community distribution description
         updateSectionDescription('community_distribution', '#community-distribution-description', {
             communityCount: subredditData.length,
             topCommunities: subredditData.slice(0, 3).map(c => c.name),
-            totalPosts: totalPosts
+            totalPosts: totalPosts,
+            dominantCommunity: processedData[0].name,
+            dominantPercentage: Math.round((processedData[0].count / totalPosts) * 100),
+            communityDiversity: processedData.length,
+            smallestCommunity: processedData.length > 1 ? 
+                (processedData[processedData.length-1].name !== 'Other' ? 
+                    processedData[processedData.length-1].name : 
+                    processedData[processedData.length-2].name) : 
+                'None',
+            smallestPercentage: processedData.length > 1 ? 
+                (processedData[processedData.length-1].name !== 'Other' ? 
+                    Math.round((processedData[processedData.length-1].count / totalPosts) * 100) : 
+                    Math.round((processedData[processedData.length-2].count / totalPosts) * 100)) : 
+                0,
+            otherPercentage: otherCount > 0 ? Math.round((otherCount / totalPosts) * 100) : 0,
+            query: query
         });
         
     } catch (error) {
@@ -4974,7 +5014,30 @@ function addMessageToChat(role, content, time = null) {
     // Create message content
     const contentP = document.createElement('div');
     contentP.className = 'message-content';
-    contentP.innerHTML = content;
+    
+    // Handle content based on role
+    if (role === 'assistant') {
+        // Check if content appears to be raw HTML (starting with quotes, backticks, or HTML tags)
+        let cleanContent = content;
+        
+        // Clean up obvious code blocks or quote markers
+        if (typeof cleanContent === 'string') {
+            cleanContent = cleanContent.replace(/^```html\s*/g, '').replace(/```\s*$/g, '');
+            cleanContent = cleanContent.replace(/^["'`]|["'`]$/g, '');
+            
+            // If content still doesn't look like HTML, wrap it
+            if (!cleanContent.trim().startsWith('<')) {
+                cleanContent = `<p>${cleanContent}</p>`;
+            }
+        }
+        
+        // Set the HTML content directly
+        contentP.innerHTML = cleanContent;
+    } else {
+        // For user and system messages, escape HTML
+        contentP.textContent = content;
+    }
+    
     messageDiv.appendChild(contentP);
     
     // Add timestamp if provided
@@ -5018,8 +5081,16 @@ function hideTypingIndicator() {
 
 function processChatMessage(query) {
     // Hide previous suggestions and metrics
-    document.getElementById('viz-suggestions').style.display = 'none';
-    document.getElementById('related-metrics').style.display = 'none';
+    const vizSuggestions = document.getElementById('viz-suggestions');
+    const relatedMetrics = document.getElementById('related-metrics');
+    
+    if (vizSuggestions) {
+        vizSuggestions.style.display = 'none';
+    }
+    
+    if (relatedMetrics) {
+        relatedMetrics.style.display = 'none';
+    }
     
     // Call API to process the message
     fetch('/api/chatbot', {
@@ -5042,11 +5113,27 @@ function processChatMessage(query) {
         // Hide typing indicator
         hideTypingIndicator();
         
+        console.log("Received response from server:", data.response ? data.response.substring(0, 100) + "..." : "No response");
+        
+        // Make sure we have a valid response
+        if (!data.response) {
+            throw new Error("Empty response from server");
+        }
+        
+        // Clean up any potential HTML issues
+        let cleanedResponse = data.response;
+        if (typeof cleanedResponse === 'string') {
+            cleanedResponse = cleanedResponse.trim();
+            // Remove any potential code block markers
+            cleanedResponse = cleanedResponse.replace(/^```html\s*/g, '').replace(/```\s*$/g, '');
+            cleanedResponse = cleanedResponse.replace(/^["'`]|["'`]$/g, '');
+        }
+        
         // Add AI response to chat
-        addMessageToChat('assistant', data.response);
+        addMessageToChat('assistant', cleanedResponse);
         
         // Add to chat history
-        chatHistory.push({ role: 'assistant', content: data.response });
+        chatHistory.push({ role: 'assistant', content: cleanedResponse });
         
         // Display visualization suggestions if any
         if (data.visualization_suggestions && data.visualization_suggestions.length > 0) {
@@ -5062,15 +5149,120 @@ function processChatMessage(query) {
         // Hide typing indicator
         hideTypingIndicator();
         
-        // Add error message
-        addMessageToChat('assistant', `I'm sorry, I couldn't process your request: ${error.message}`);
-        
         console.error('Error processing chat message:', error);
+        
+        // Add error message
+        addMessageToChat('assistant', `<div class='chatbot-response'><h3>Error</h3><p>I'm sorry, I couldn't process your request: ${error.message}</p></div>`);
     });
+}
+
+// Add a function to handle dashboard link clicks
+function setupDashboardLinkListeners() {
+    console.log("Setting up dashboard link listeners...");
+    // Find all dashboard links in all assistant messages (not just the most recent)
+    const dashboardLinks = document.querySelectorAll('.assistant-message .dashboard-link');
+    
+    console.log(`Found ${dashboardLinks.length} dashboard links`);
+    
+    dashboardLinks.forEach(link => {
+        // Remove any existing click listeners to avoid duplicates
+        link.removeEventListener('click', dashboardLinkClickHandler);
+        link.addEventListener('click', dashboardLinkClickHandler);
+    });
+}
+
+function dashboardLinkClickHandler(e) {
+    e.preventDefault();
+    console.log("Dashboard link clicked");
+    
+    // Get the target section from the data attribute
+    const targetSection = this.getAttribute('data-section');
+    console.log(`Target section: ${targetSection}`);
+    
+    // Map the section to the corresponding tab ID
+    const tabMapping = {
+        'timeseries': 'timeseries-tab',
+        'network': 'network-tab',
+        'topics': 'topics-tab',
+        'coordinated': 'coordinated-tab',
+        'word_cloud': 'word-cloud-tab',  // This doesn't exist, needs fixing
+        'contributors': 'contributors-tab',
+        'overview': 'overview-tab',
+        'ai_insights': 'ai-insights-tab',
+        'data_story': 'data-story-tab',
+        'events': 'events-tab',
+        'semantic_map': 'semantic-map-tab'
+    };
+    
+    // Use proper tab IDs that actually exist in the document
+    // The proper correction for tab IDs that don't exist in the HTML
+    if (targetSection === 'word_cloud') {
+        const overviewTab = document.getElementById('overview-tab');
+        if (overviewTab) {
+            overviewTab.click();
+            console.log("Redirecting to overview tab (word cloud doesn't have its own tab)");
+        } else {
+            console.warn("Overview tab element not found");
+        }
+        return;
+    }
+    
+    if (targetSection === 'ai_insights') {
+        const overviewTab = document.getElementById('overview-tab');
+        if (overviewTab) {
+            overviewTab.click();
+            console.log("Redirecting to overview tab (AI insights panel)");
+        } else {
+            console.warn("Overview tab element not found");
+        }
+        return;
+    }
+    
+    if (targetSection === 'data_story') {
+        const overviewTab = document.getElementById('overview-tab');
+        if (overviewTab) {
+            overviewTab.click();
+            console.log("Redirecting to overview tab (data story panel)");
+        } else {
+            console.warn("Overview tab element not found");
+        }
+        return;
+    }
+    
+    if (targetSection === 'events') {
+        const timeseriesTab = document.getElementById('timeseries-tab');
+        if (timeseriesTab) {
+            timeseriesTab.click();
+            console.log("Redirecting to timeseries tab (events are shown there)");
+        } else {
+            console.warn("Timeseries tab element not found");
+        }
+        return;
+    }
+    
+    // For other tabs, use the mapping if available
+    const tabElement = document.getElementById(tabMapping[targetSection]);
+    if (tabElement) {
+        console.log(`Clicking tab: ${tabMapping[targetSection]}`);
+        tabElement.click();
+        
+        // Add a visual indication that the tab was navigated from chatbot
+        tabElement.classList.add('highlight-tab');
+        setTimeout(() => {
+            tabElement.classList.remove('highlight-tab');
+        }, 2000);
+    } else {
+        console.warn(`Tab for section "${targetSection}" not found`);
+    }
 }
 
 function displayVisualizationSuggestions(suggestions) {
     const container = document.getElementById('viz-suggestions-content');
+    if (!container) {
+        console.warn('Visualization suggestions container not found');
+        return;
+    }
+    
     container.innerHTML = '';
     
     suggestions.forEach(suggestion => {
@@ -5082,28 +5274,35 @@ function displayVisualizationSuggestions(suggestions) {
         card.style.cursor = 'pointer';
         card.addEventListener('click', () => {
             // Switch to relevant tab based on suggestion type
+            let tabElement;
             switch(suggestion.type) {
                 case 'time_series':
-                    document.getElementById('timeseries-tab').click();
+                    tabElement = document.getElementById('timeseries-tab');
                     break;
                 case 'topics':
-                    document.getElementById('topics-tab').click();
+                    tabElement = document.getElementById('topics-tab');
                     break;
                 case 'network':
-                    document.getElementById('network-tab').click();
+                    tabElement = document.getElementById('network-tab');
                     break;
                 case 'semantic_map':
-                    document.getElementById('semantic-map-tab').click();
+                    tabElement = document.getElementById('semantic-map-tab');
                     break;
                 case 'community_distribution':
-                    document.getElementById('network-tab').click(); // This is on the network tab
+                    tabElement = document.getElementById('network-tab'); // This is on the network tab
                     break;
                 case 'coordinated':
-                    document.getElementById('coordinated-tab').click();
+                    tabElement = document.getElementById('coordinated-tab');
                     break;
                 default:
-                    document.getElementById('overview-tab').click();
+                    tabElement = document.getElementById('overview-tab');
                     break;
+            }
+            
+            if (tabElement) {
+                tabElement.click();
+            } else {
+                console.warn(`Tab for visualization type "${suggestion.type}" not found`);
             }
         });
         
@@ -5134,11 +5333,19 @@ function displayVisualizationSuggestions(suggestions) {
     });
     
     // Show the container
-    document.getElementById('viz-suggestions').style.display = 'block';
+    const vizSuggestions = document.getElementById('viz-suggestions');
+    if (vizSuggestions) {
+        vizSuggestions.style.display = 'block';
+    }
 }
 
 function displayRelatedMetrics(metrics) {
     const container = document.getElementById('metrics-content');
+    if (!container) {
+        console.warn('Metrics content container not found');
+        return;
+    }
+    
     container.innerHTML = '';
     
     // Define the metrics to show and their formats
@@ -5259,7 +5466,10 @@ function displayRelatedMetrics(metrics) {
     }
     
     // Show the container
-    document.getElementById('related-metrics').style.display = 'block';
+    const relatedMetrics = document.getElementById('related-metrics');
+    if (relatedMetrics) {
+        relatedMetrics.style.display = 'block';
+    }
 }
 
 // ... existing code ...

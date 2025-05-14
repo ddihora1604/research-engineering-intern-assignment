@@ -12,6 +12,7 @@ A powerful, interactive dashboard for analyzing social media conversations, tren
 - **AI-Generated Insights**: Get AI-powered summaries and analysis of the data
 - **Data Storytelling**: View synthesized narratives that connect insights into a cohesive story
 - **Dynamic Documentation**: Context-aware section descriptions generated in real-time by LLaMA via Groq API
+- **Interactive Chatbot**: Engage with an AI-powered chatbot using Google's Gemini 2.0 Flash model to ask questions about the data
 
 ### Technical Capabilities
 - Processes Reddit data from JSONL format
@@ -21,6 +22,7 @@ A powerful, interactive dashboard for analyzing social media conversations, tren
 - Generates interactive visualizations using D3.js
 - Supports filtering by keywords and date ranges
 - Utilizes LLaMA model via Groq API for real-time, context-aware documentation
+- Integrates Google's Gemini 2.0 Flash model for detailed chatbot responses
 
 ## Installation
 
@@ -48,12 +50,14 @@ A powerful, interactive dashboard for analyzing social media conversations, tren
    # Place your data.jsonl file in the ./data directory
    ```
 
-4. Set up environment variables for LLaMA integration (required for dynamic descriptions):
+4. Set up environment variables for API integrations:
    ```
    # Create a .env file in the project root
    echo "GROQ_API_KEY=your_groq_api_key" > .env
+   echo "GEMINI_API_KEY=your_gemini_api_key" >> .env
    ```
-   You can get a Groq API key by signing up at [console.groq.com](https://console.groq.com/keys)
+   - Get a Groq API key by signing up at [console.groq.com](https://console.groq.com/keys)
+   - Get a Gemini API key by signing up at [aistudio.google.com](https://aistudio.google.com/)
 
 ## Usage
 
@@ -79,6 +83,7 @@ A powerful, interactive dashboard for analyzing social media conversations, tren
    - Network Analysis: User interaction network
    - Topic Analysis: Key themes and topics
    - Coordinated Behavior: Detection of potentially coordinated posting
+   - Chatbot: Interactive AI assistant for asking questions about the dataset
 
 ### Dynamic Descriptions Feature
 
@@ -89,6 +94,22 @@ Each visualization section includes real-time, context-aware descriptions that:
 - Update automatically when parameters or filters change
 
 This feature requires a valid Groq API key in your .env file. Without this key, the system will fall back to generic section descriptions.
+
+### Interactive Chatbot Feature
+
+The dashboard includes an AI-powered chatbot that allows you to:
+- Ask natural language questions about the dataset
+- Receive detailed, structured responses with insights derived from the data
+- Get comprehensive analysis of trends, topics, communities, and engagement
+- View well-formatted responses with proper headings, lists, and paragraphs
+
+The chatbot leverages Google's Gemini 2.0 Flash model to generate informative responses based on:
+- The content of your query
+- Analysis of patterns in the dataset
+- Statistical metrics computed from the data
+- Intent detection to provide the most relevant information
+
+This feature requires a valid Gemini API key in your .env file. Without this key, the system will fall back to template-based responses.
 
 ## Data Requirements
 
@@ -132,6 +153,7 @@ The modular design allows for easy extension with new analysis types:
 - **Visualization not appearing**: Check the browser console for JavaScript errors
 - **Slow performance**: Try reducing the size of your dataset or limiting your query scope
 - **Dynamic descriptions not working**: Verify your GROQ_API_KEY is correctly set in the .env file and that you have an active account
+- **Chatbot not generating detailed responses**: Verify your GEMINI_API_KEY is correctly set in the .env file and that you have an active Google AI Studio account
 
 ## Contributing
 
