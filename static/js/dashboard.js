@@ -3498,13 +3498,13 @@ async function updateCommunityDistributionPieChart(query) {
         const height = Math.min(500, width * 0.8);
         const radius = Math.min(width, height) / 2 - 40; // Increased margin for labels
         
-        // Create SVG
+        // Create SVG with adjusted positioning
         const svg = d3.select('#community-distribution')
             .append('svg')
             .attr('width', width)
             .attr('height', height)
             .append('g')
-            .attr('transform', `translate(${width / 2},${height / 2})`);
+            .attr('transform', `translate(${width / 2 + 30},${height / 2})`);
             
         // Calculate total posts for percentage display
         const totalPosts = subredditData.reduce((sum, item) => sum + item.count, 0);
@@ -3699,23 +3699,26 @@ async function updateCommunityDistributionPieChart(query) {
             return d.startAngle + (d.endAngle - d.startAngle) / 2;
         }
             
-        // Create alternative side legend with scrollable container
+        // Create side legend with scrollable container and improved positioning to prevent overlap
         const legendContainer = svg.append('foreignObject')
             .attr('x', -width/2 + 10)
             .attr('y', -height/2 + 40)
-            .attr('width', width/4)
+            .attr('width', width/3.5) // Wider container for the legend
             .attr('height', height - 80)
             .append('xhtml:div')
             .style('height', '100%')
             .style('overflow-y', 'auto')
-            .style('padding-right', '10px');
+            .style('padding-right', '10px')
+            .style('padding-bottom', '5px')
+            .style('background-color', 'rgba(255,255,255,0.5)') // Semi-transparent background
+            .style('border-radius', '5px');
             
         const legendHTML = processedData.map((item, i) => {
             const percent = Math.round(item.count / totalPosts * 100);
             return `
-                <div style="display: flex; align-items: center; margin-bottom: 8px; font-size: 12px; opacity: 0; animation: fadeIn 0.3s forwards ${i * 100 + 600}ms;">
+                <div style="display: flex; align-items: center; margin-bottom: 10px; font-size: 12px; opacity: 0; animation: fadeIn 0.3s forwards ${i * 100 + 600}ms;">
                     <div style="width: 12px; height: 12px; background-color: ${color(item.name)}; margin-right: 8px; border-radius: 2px;"></div>
-                    <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80%;">
+                    <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%;">
                         ${item.name} (${percent}%)
                     </div>
                 </div>
@@ -3729,8 +3732,10 @@ async function updateCommunityDistributionPieChart(query) {
                     to { opacity: 1; transform: translateY(0); }
                 }
             </style>
-            <div style="font-weight: bold; margin-bottom: 10px; font-size: 13px;">Communities:</div>
-            ${legendHTML}
+            <div style="font-weight: bold; margin-bottom: 12px; font-size: 14px; color: var(--primary-dark);">Communities:</div>
+            <div style="border-left: 2px solid #eee; padding-left: 10px; margin-left: 5px;">
+                ${legendHTML}
+            </div>
         `);
         
         // Update the community distribution description
