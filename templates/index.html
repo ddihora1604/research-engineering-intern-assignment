@@ -362,7 +362,7 @@
         }
         
         /* Graph Containers */
-        #network-graph, #coordinated-graph {
+        #network-graph {
             width: 100%;
             height: 600px;
             border: 1px solid var(--neutral-color);
@@ -719,30 +719,6 @@
         
         .badge.bg-secondary {
             background-color: var(--text-secondary) !important;
-        }
-        
-        /* Topic Cards */
-        .topic-card {
-            transition: all 0.3s ease;
-            border-radius: var(--border-radius);
-            border-color: var(--neutral-color);
-        }
-        
-        .topic-card:hover {
-            transform: translateY(-5px);
-            box-shadow: var(--hover-shadow);
-        }
-        
-        /* Alert Styling */
-        .alert {
-            border-radius: var(--border-radius);
-            font-weight: 500;
-        }
-        
-        .alert-info {
-            background-color: var(--primary-light);
-            color: var(--primary-dark);
-            border-color: var(--primary-light);
         }
         
         /* Section Loading Indicator Style */
@@ -1221,9 +1197,7 @@
                                 <i class="bi bi-info-circle"></i> Creates a narrative analysis connecting key insights, trends, and patterns from your query into a comprehensive data story.
                             </div>
                             <div id="data-story" class="card">
-                                <div class="card-body">
-                                    <p class="text-muted">Enter a search query to generate a comprehensive data story.</p>
-                                </div>
+                                
                             </div>
                         </div>
                     </div>
@@ -1262,7 +1236,7 @@
                     <div class="alert alert-info mb-3" id="timeseries-description">
                         <i class="bi bi-info-circle"></i> Tracks post volume over time to reveal when discussions peaked, declined, or remained steady.
                     </div>
-                    <p class="text-muted mb-4">Shows post frequency over time for the selected query.</p>
+                    
                     <div id="timeseries-chart"></div>
                 </div>
                 
@@ -1271,7 +1245,7 @@
                     <div class="alert alert-info mb-3" id="topic-evolution-description">
                         <i class="bi bi-info-circle"></i> Shows how conversation themes and topics change in prominence across different time periods.
                     </div>
-                    <p class="text-muted mb-4">Shows how topics evolve and change in prevalence over time.</p>
+                    
                     <div id="topic-evolution-chart"></div>
                 </div>
             </div>
@@ -1285,107 +1259,8 @@
                             <div class="alert alert-info mb-3" id="community-distribution-description">
                                 <i class="bi bi-info-circle"></i> Shows the relative proportions of different communities or subreddits represented in your search results.
                             </div>
-                            <div id="community-distribution"></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="row mt-4">
-                    <div class="col-12">
-                        <div class="chart-container">
-                            <h3><i class="bi bi-node-plus-fill"></i> Network Analysis</h3>
-                            <div class="alert alert-info mb-3" id="network-description">
-                                <i class="bi bi-info-circle"></i> Maps connections between users based on their interactions, revealing community structure and influence patterns.
-                            </div>
+                            <div id="community-distribution" style="height: 600px; padding: 20px; margin-bottom: 20px;"></div>
                             
-                            <div class="row mb-4">
-                                <div class="col-md-6">
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <h5 class="card-title">Network Type</h5>
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input" type="radio" name="network-type" id="interaction-network" value="interaction" checked>
-                                                <label class="form-check-label" for="interaction-network">
-                                                    <strong>User Interaction Network</strong> - Shows connections based on comments
-                                                </label>
-                                            </div>
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="radio" name="network-type" id="content-network" value="content_sharing">
-                                                <label class="form-check-label" for="content-network">
-                                                    <strong>Content Sharing Network</strong> - Shows connections based on shared content
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-6" id="content-options">
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <h5 class="card-title">Content Type</h5>
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input" type="radio" name="content-type" id="content-all" value="all" checked>
-                                                <label class="form-check-label" for="content-all">All shared content</label>
-                                            </div>
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input" type="radio" name="content-type" id="content-keywords" value="keywords">
-                                                <label class="form-check-label" for="content-keywords">Keywords only</label>
-                                            </div>
-                                            <div class="form-check mb-2">
-                                                <input class="form-check-input" type="radio" name="content-type" id="content-hashtags" value="hashtags">
-                                                <label class="form-check-label" for="content-hashtags">Hashtags only</label>
-                                            </div>
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="radio" name="content-type" id="content-urls" value="urls">
-                                                <label class="form-check-label" for="content-urls">URLs only</label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="row mb-4">
-                                <div class="col-12" id="similarity-slider-container">
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <h5 class="card-title">Minimum Content Similarity: <span id="similarity-value">20%</span></h5>
-                                            <input type="range" class="form-range" id="min-similarity-slider" min="0.05" max="0.5" step="0.05" value="0.2">
-                                            <div class="d-flex justify-content-between mt-1">
-                                                <span class="text-muted">Low (5%)</span>
-                                                <span class="text-muted">High (50%)</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="row mb-3">
-                                <div class="col-12 text-end">
-                                    <button id="update-network-btn" class="btn btn-primary">
-                                        <i class="bi bi-arrow-repeat"></i> Update Network
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div class="mt-3 mb-4" id="network-metrics"></div>
-                            
-                            <div id="network-graph-container" class="position-relative">
-                                <div id="network-graph"></div>
-                            </div>
-                            
-                            <div class="mt-3">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h5><i class="bi bi-info-circle"></i> How to Use?</h5>
-                                        <ul>
-                                            <li>In <strong>User Interaction Network</strong> mode, edges represent comment interactions between users.</li>
-                                            <li>In <strong>Content Sharing Network</strong> mode, edges represent users sharing similar keywords, hashtags, or URLs.</li>
-                                            <li>Hover over nodes to see user details and click to highlight their connections.</li>
-                                            <li>Hover over edges to see shared content details.</li>
-                                            <li>Adjust the similarity threshold to control how many connections are shown in content sharing mode.</li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -1396,7 +1271,7 @@
                 <div class="chart-container">
                     <h3><i class="bi bi-collection-fill"></i> Topic Analysis</h3>
                     <div class="alert alert-info mb-3" id="topics-description">
-                        <i class="bi bi-info-circle"></i> Identifies distinct topics within the content using Latent Dirichlet Allocation (LDA) to reveal key themes.
+                        <i class="bi bi-info-circle"></i> Identifies distinct topics within the content to reveal key themes.
                     </div>
                     <div class="row align-items-end mb-4">
                         <div class="col-md-8">
@@ -1531,49 +1406,40 @@
             <!-- Coordinated Behavior Tab -->
             <div class="tab-pane fade" id="coordinated-panel" role="tabpanel" aria-labelledby="coordinated-tab">
                 <div class="row">
-                    <div class="col-md-6">
+                    <div class="col-md-12">
                         <div class="chart-container">
-                            <h3><i class="bi bi-calendar2-event-fill"></i> Coordinated Behavior Network</h3>
-                            <div class="alert alert-info mb-3" id="coordinated-description">
-                                <i class="bi bi-info-circle"></i> Identifies authors who post similar content around the same time, helping detect possible coordinated behavior.
+                            <h3><i class="bi bi-people-fill"></i> Coordinated Post Groups</h3>
+                            <div class="alert alert-info mb-3">
+                                <i class="bi bi-info-circle"></i> Groups of similar posts that appeared within a short time window, suggesting possible coordination.
                             </div>
                             <div class="mb-4">
-                                <label for="time-window" class="form-label fw-medium">Time Window (seconds): <span id="time-window-value" class="badge bg-light text-dark">3600</span></label>
-                                <input type="range" class="form-range" id="time-window" min="600" max="21600" step="600" value="3600">
-                            </div>
-                            <div class="mb-4">
-                                <label for="similarity-threshold" class="form-label fw-medium">Similarity Threshold: <span id="similarity-threshold-value" class="badge bg-light text-dark">0.7</span></label>
-                                <input type="range" class="form-range" id="similarity-threshold" min="0.3" max="0.9" step="0.05" value="0.7">
-                            </div>
-                            <button id="update-coordinated-btn" class="btn btn-outline-primary mb-4">
-                                <i class="bi bi-arrow-repeat"></i> Update Analysis
-                            </button>
-                            <div id="coordinated-graph"></div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="chart-container">
-                            <h3><i class="bi bi-collection-play-fill"></i> Coordinated Post Groups</h3>
-                            <div class="alert alert-info mb-3" id="coordinated-groups-description">
-                                <i class="bi bi-info-circle"></i> Groups posts that share similar content and were created within the same time window.
-                            </div>
-                            <div id="coordinated-stats" class="mb-4">
-                                <div class="row">
+                                <div class="row controls-row">
                                     <div class="col-md-6">
-                                        <div class="stat-card">
-                                            <div class="stat-value" id="total-groups">0</div>
-                                            <div class="stat-label">Total Groups</div>
+                                        <label for="time-window" class="form-label">Time Window (seconds):</label>
+                                        <input type="range" class="form-range" id="time-window" min="60" max="3600" step="60" value="600">
+                                        <div class="d-flex justify-content-between small text-muted">
+                                            <span>1m</span>
+                                            <span>30m</span>
+                                            <span>1h</span>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
-                                        <div class="stat-card">
-                                            <div class="stat-value" id="total-authors">0</div>
-                                            <div class="stat-label">Total Authors</div>
+                                        <label for="similarity-threshold" class="form-label">Similarity Threshold:</label>
+                                        <input type="range" class="form-range" id="similarity-threshold" min="0.5" max="0.95" step="0.05" value="0.8">
+                                        <div class="d-flex justify-content-between small text-muted">
+                                            <span>0.5</span>
+                                            <span>0.7</span>
+                                            <span>0.95</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <div id="coordinated-groups" style="max-height: 500px; overflow-y: auto;"></div>
+                            <div id="coordinated-stats" class="mb-4">
+                                <!-- Stats will be populated by JavaScript -->
+                            </div>
+                            <div id="coordinated-groups">
+                                <!-- Groups will be populated by JavaScript -->
+                            </div>
                         </div>
                     </div>
                 </div>

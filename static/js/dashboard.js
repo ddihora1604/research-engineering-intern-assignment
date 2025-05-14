@@ -249,14 +249,18 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
     
     try {
         // Clear all previous visualizations first
-        document.getElementById('network-graph').innerHTML = '';
         document.getElementById('topics-container').innerHTML = '';
         document.getElementById('contributors-overview').innerHTML = '';
-        document.getElementById('coordinated-graph').innerHTML = '';
+        // Remove reference to network-graph which is no longer needed
         document.getElementById('coordinated-groups').innerHTML = '';
         document.getElementById('word-cloud').innerHTML = '';
         document.getElementById('timeseries-chart').innerHTML = '';
         document.getElementById('ai-summary').innerHTML = '';
+        document.getElementById('topic-evolution-chart').innerHTML = '';
+        document.getElementById('semantic-map-container').innerHTML = '';
+        document.getElementById('point-details').innerHTML = '<p class="text-muted">Click on a point to see details</p>';
+        document.getElementById('topic-clusters').innerHTML = '<p class="text-muted">Loading topic clusters...</p>';
+        document.getElementById('community-distribution').innerHTML = '';
         
         // Reset data story with placeholder
         document.getElementById('data-story').innerHTML = `
@@ -311,11 +315,13 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
         analysisPerformed = true;
         
         // PERFORMANCE OPTIMIZATION: Create placeholder loading indicators for remaining components
-        document.getElementById('timeseries-chart').innerHTML = `<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading ${sectionTitles['timeseries']}...</div>`;
-        document.getElementById('network-graph').innerHTML = `<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading ${sectionTitles['network']}...</div>`;
-        document.getElementById('topics-container').innerHTML = `<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading ${sectionTitles['topics']}...</div>`;
-        document.getElementById('coordinated-graph').innerHTML = `<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading ${sectionTitles['coordinated']}...</div>`;
-        document.getElementById('coordinated-groups').innerHTML = '';
+        document.getElementById('timeseries-chart').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading time series analysis...</div>';
+        document.getElementById('topic-evolution-chart').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading topic evolution analysis...</div>';
+        // Remove reference to network-graph which no longer exists
+        document.getElementById('topics-container').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading topic analysis...</div>';
+        document.getElementById('coordinated-groups').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading coordinated behavior analysis...</div>';
+        document.getElementById('community-distribution').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading community distribution...</div>';
+        document.getElementById('semantic-map-container').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading semantic map analysis...</div>';
         
         // Phase 2: Load the data story and time series (medium weight)
         // Generate a data story based on the analyzed results
@@ -349,16 +355,7 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
                         document.getElementById('topics-container').innerHTML = '<p class="text-danger">Error loading topics data</p>';
                     }
                     
-                    try {
-                        await updateNetwork(query);
-                        // Update network description after data is loaded
-                        updateSectionDescription('network', '#network-description', {
-                            nodeCount: document.querySelectorAll('#network-graph circle').length
-                        });
-                    } catch (error) {
-                        console.error('Error updating network:', error);
-                        document.getElementById('network-graph').innerHTML = '<p class="text-danger">Error loading network data</p>';
-                    }
+                    // Network Analysis section removed
                     
                     try {
                         await updateCoordinatedBehavior();
@@ -369,8 +366,20 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
                         });
                     } catch (error) {
                         console.error('Error updating coordinated behavior:', error);
-                        document.getElementById('coordinated-graph').innerHTML = '<p class="text-danger">Error loading coordinated behavior data</p>';
-                        document.getElementById('coordinated-groups').innerHTML = '<p class="text-danger">Error loading coordinated groups data</p>';
+                        // Remove reference to coordinated-graph which no longer exists
+                        document.getElementById('coordinated-groups').innerHTML = '<p class="text-danger">Error loading coordinated behavior data</p>';
+                    }
+                    
+                    // Update Community Distribution pie chart
+                    try {
+                        await updateCommunityDistributionPieChart(query);
+                        // Update community distribution description
+                        updateSectionDescription('community_distribution', '#community-distribution-description', {
+                            communities: document.querySelectorAll('#community-distribution path').length
+                        });
+                    } catch (error) {
+                        console.error('Error updating community distribution:', error);
+                        document.getElementById('community-distribution').innerHTML = '<p class="text-danger">Error loading community distribution data</p>';
                     }
                     
                     console.log('All visualizations loaded');
@@ -412,17 +421,6 @@ document.getElementById('update-topics-btn').addEventListener('click', async () 
     showLoading(false);
 });
 
-document.getElementById('update-coordinated-btn').addEventListener('click', async () => {
-    showLoading(true);
-    await updateCoordinatedBehavior();
-    // Update coordinated description again after refresh
-    updateSectionDescription('coordinated', '#coordinated-description', {
-        timeWindow: document.getElementById('time-window').value,
-        similarityThreshold: document.getElementById('similarity-threshold').value
-    });
-    showLoading(false);
-});
-
 // Initialize tab change listeners to ensure visualizations render properly on tab change
 document.addEventListener('DOMContentLoaded', function() {
     const tabLinks = document.querySelectorAll('.nav-link');
@@ -452,15 +450,14 @@ document.addEventListener('DOMContentLoaded', function() {
             // Based on which tab is now active, ensure visualizations are properly rendered
             switch (targetTab) {
                 case '#network-panel':
-                    // If network graph is empty, re-render it
-                    if (document.getElementById('network-graph').innerHTML === '' || 
-                       document.getElementById('network-graph').getBoundingClientRect().height < 10) {
-                        console.log('Re-rendering network graph on tab change');
+                    // If community distribution is empty, re-render it
+                    if (document.getElementById('community-distribution').innerHTML === '') {
+                        console.log('Re-rendering community distribution on tab change');
                         showLoading(true);
-                        updateNetwork(activeQuery)
+                        updateCommunityDistributionPieChart(activeQuery)
                             .catch(error => {
-                                console.error('Error updating network:', error);
-                                document.getElementById('network-graph').innerHTML = '<p class="text-danger">Error loading network data</p>';
+                                console.error('Error updating community distribution:', error);
+                                document.getElementById('community-distribution').innerHTML = '<p class="text-danger">Error loading community distribution data</p>';
                             })
                             .finally(() => {
                                 showLoading(false);
@@ -469,7 +466,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     break;
                 case '#timeseries-panel':
                     // If timeseries chart is empty, re-render it
-                    if (document.getElementById('timeseries-chart').innerHTML === '' ||
+                    if (document.getElementById('timeseries-chart').innerHTML === '' || 
                        document.getElementById('timeseries-chart').getBoundingClientRect().height < 10) {
                         console.log('Re-rendering time series on tab change');
                         showLoading(true);
@@ -499,16 +496,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     break;
                 case '#coordinated-panel':
-                    // If coordinated graph is empty, re-render it
-                    if (document.getElementById('coordinated-graph').innerHTML === '' || 
-                        document.getElementById('coordinated-groups').innerHTML === '') {
+                    // If coordinated groups is empty, re-render it
+                    if (document.getElementById('coordinated-groups').innerHTML === '') {
                         console.log('Re-rendering coordinated behavior on tab change');
                         showLoading(true);
                         updateCoordinatedBehavior()
                             .catch(error => {
                                 console.error('Error updating coordinated behavior:', error);
-                                document.getElementById('coordinated-graph').innerHTML = '<p class="text-danger">Error loading coordinated behavior data</p>';
-                                document.getElementById('coordinated-groups').innerHTML = '<p class="text-danger">Error loading coordinated groups data</p>';
+                                document.getElementById('coordinated-groups').innerHTML = '<p class="text-danger">Error loading coordinated behavior data</p>';
                             })
                             .finally(() => {
                                 showLoading(false);
@@ -1660,649 +1655,11 @@ async function updateContributors(query) {
         .text(`Top Contributors for "${query}"`);
 }
 
-// Network Visualization - Optimized version
+// Network Visualization - Simplified version after removing Network Analysis section
 async function updateNetwork(query) {
-    // Show loading state
-    document.getElementById('network-graph').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading network analysis...</div>';
-    
-    // Get active network type from radio buttons
-    const networkType = document.querySelector('input[name="network-type"]:checked')?.value || 'interaction';
-    const contentType = document.querySelector('input[name="content-type"]:checked')?.value || 'all';
-    const minSimilarity = document.getElementById('min-similarity-slider')?.value || 0.2;
-    
-    // Build URL with parameters
-    let url = `/api/network?query=${encodeURIComponent(query)}`;
-    url += `&network_type=${networkType}&content_type=${contentType}&min_similarity=${minSimilarity}`;
-    
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(`Network request failed with status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    // Check if we have valid data
-    if (!data.nodes || data.nodes.length === 0) {
-        document.getElementById('network-graph').innerHTML = '<div class="alert alert-info">No network data available for this query.</div>';
-        return;
-    }
-    
-    // Update network metrics display
-    if (data.metrics) {
-        document.getElementById('network-metrics').innerHTML = `
-            <div class="row">
-                <div class="col-md-3">
-                    <div class="stat-card">
-                        <div class="stat-value">${data.metrics.node_count}</div>
-                        <div class="stat-label">Users</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card">
-                        <div class="stat-value">${data.metrics.edge_count}</div>
-                        <div class="stat-label">Connections</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card">
-                        <div class="stat-value">${data.metrics.avg_degree.toFixed(2)}</div>
-                        <div class="stat-label">Avg. Connections</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="stat-card">
-                        <div class="stat-value">${(data.metrics.density * 100).toFixed(1)}%</div>
-                        <div class="stat-label">Network Density</div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    // Clear previous chart
-    d3.select('#network-graph').html('');
-    
-    const networkElement = document.getElementById('network-graph');
-    const width = networkElement.clientWidth || networkElement.offsetWidth || 800; // Fallback width
-    const height = 500; // Reduced height to improve performance
-    
-    // PERFORMANCE OPTIMIZATION: Simplify data for better performance
-    // Limit the number of nodes - significantly reduced from 100 to 50 for better performance
-    const maxNodes = 50;
-    let nodes = data.nodes;
-    let links = data.links;
-    
-    // PERFORMANCE OPTIMIZATION: More aggressive filtering for large networks
-    if (nodes.length > maxNodes) {
-        // Sort nodes by size/posts and take only the top ones
-        nodes = nodes.sort((a, b) => (b.posts || 0) - (a.posts || 0)).slice(0, maxNodes);
-        // Filter links to only include the nodes we kept
-        const nodeIds = new Set(nodes.map(n => n.id));
-        links = links.filter(l => nodeIds.has(l.source) && nodeIds.has(l.target));
-    }
-    
-    // PERFORMANCE OPTIMIZATION: Further reduce complexity for very large networks
-    if (nodes.length > 30) {
-        // For larger networks, reduce link complexity 
-        links = links.filter((_, index) => index % 2 === 0); // Take every other link
-    }
-    
-    // Define a color scale for node groups (communities)
-    const color = d3.scaleOrdinal(d3.schemeCategory10);
-    
-    // Create SVG container
-    const svg = d3.select('#network-graph')
-        .append('svg')
-        .attr('width', width)
-        .attr('height', height)
-        .append('g')
-        .attr('transform', `translate(0,0)`);
-    
-    // Add a title
-    const networkTitle = networkType === 'interaction' 
-        ? `User Interaction Network for "${query}"`
-        : `Content Sharing Network for "${query}"`;
-    
-    svg.append('text')
-        .attr('x', width / 2)
-        .attr('y', 20)
-        .attr('text-anchor', 'middle')
-        .style('font-size', '16px')
-        .text(networkTitle);
-    
-    // PERFORMANCE OPTIMIZATION: Simplified forces and reduced iterations
-    const simulation = d3.forceSimulation(nodes)
-        .force('link', d3.forceLink(links)
-            .id(d => d.id)
-            .distance(d => networkType === 'interaction' ? 75 : (100 / (d.similarity || 0.2)))) // Adjust distance based on similarity for content networks
-        .force('charge', d3.forceManyBody().strength(-80)) // Reduced strength
-        .force('center', d3.forceCenter(width / 2, height / 2))
-        .force('collision', d3.forceCollide().radius(d => Math.min((d.size || 5) + 2, 15))) // Cap the radius
-        .alphaDecay(0.05) // Faster cooling - reduces number of simulation iterations
-        .velocityDecay(0.4); // Higher friction - stabilizes faster
-    
-    // PERFORMANCE OPTIMIZATION: Use canvas for larger networks for better performance
-    if (nodes.length > 30) {
-        // For large networks, use canvas instead of SVG elements
-        d3.select('#network-graph svg').remove();
-        
-        const canvas = d3.select('#network-graph')
-            .append('canvas')
-            .attr('width', width)
-            .attr('height', height)
-            .node();
-        
-        const context = canvas.getContext('2d');
-        
-        // Function to draw network on canvas
-        function drawNetwork() {
-            context.clearRect(0, 0, width, height);
-            
-            // Draw title
-            context.font = '16px sans-serif';
-            context.textAlign = 'center';
-            context.fillText(networkTitle, width/2, 20);
-            
-            // Draw links
-            context.strokeStyle = '#999';
-            context.lineWidth = 1;
-            context.globalAlpha = 0.6;
-            links.forEach(link => {
-                // For content network, adjust line thickness based on similarity/shared content
-                if (networkType !== 'interaction' && link.similarity) {
-                    context.lineWidth = Math.max(1, Math.min(5, link.similarity * 5));
-                    // Color links based on similarity
-                    const hue = Math.min(120, Math.round(link.similarity * 120)); // 0-120 range (red to green)
-                    context.strokeStyle = `hsl(${hue}, 70%, 50%)`;
-                }
-                
-                context.beginPath();
-                context.moveTo(link.source.x, link.source.y);
-                context.lineTo(link.target.x, link.target.y);
-                context.stroke();
-                
-                // Reset for next link
-                context.lineWidth = 1;
-                context.strokeStyle = '#999';
-            });
-            
-            // Draw nodes
-            context.globalAlpha = 1.0;
-            nodes.forEach(node => {
-                context.beginPath();
-                context.arc(
-                    Math.max(10, Math.min(width - 10, node.x || width/2)),
-                    Math.max(10, Math.min(height - 10, node.y || height/2)),
-                    Math.min((node.size || 5), 12),
-                    0, 
-                    2 * Math.PI
-                );
-                
-                // For content network, adjust node coloring
-                if (networkType !== 'interaction') {
-                    const nodeColor = color(node.group || 0);
-                    context.fillStyle = nodeColor;
-                } else {
-                context.fillStyle = color(node.group || 0);
-                }
-                
-                context.fill();
-                context.strokeStyle = '#fff';
-                context.stroke();
-            });
-            
-            // Draw top node labels
-            context.font = '8px sans-serif';
-            context.fillStyle = '#000';
-            nodes.slice(0, 10).forEach(node => {
-                context.fillText(
-                    node.id,
-                    Math.max(10, Math.min(width - 10, (node.x || width/2) + 10)),
-                    Math.max(10, Math.min(height - 10, (node.y || height/2) + 3))
-                );
-            });
-            
-            // Draw info text
-            context.font = '10px sans-serif';
-            context.fillStyle = '#666';
-            context.textAlign = 'left';
-            context.fillText(`Showing ${nodes.length} of ${data.nodes.length} nodes for better performance`, 10, height - 10);
-        }
-        
-        // Update simulation to use canvas renderer
-        simulation.on('tick', () => {
-            // Constrain nodes to view
-            nodes.forEach(node => {
-                node.x = Math.max(10, Math.min(width - 10, node.x));
-                node.y = Math.max(10, Math.min(height - 10, node.y));
-            });
-            drawNetwork();
-        });
-        
-        // Variables to track clicked node for showing details
-        let selectedNode = null;
-        
-        // Add canvas interaction for node dragging and clicking
-        d3.select(canvas).call(d3.drag()
-            .container(canvas)
-            .subject(() => {
-                const x = d3.event.x;
-                const y = d3.event.y;
-                let closest = null;
-                let closestDistance = Infinity;
-                
-                // Find the closest node to the mouse
-                nodes.forEach(node => {
-                    const dx = node.x - x;
-                    const dy = node.y - y;
-                    const distance = dx * dx + dy * dy;
-                    if (distance < closestDistance) {
-                        closest = node;
-                        closestDistance = distance;
-                    }
-                });
-                
-                // Only select a node if it's close enough to the mouse
-                if (closestDistance < 200) {
-                    return closest;
-                }
-            })
-            .on('start', dragstarted)
-            .on('drag', dragged)
-            .on('end', dragended));
-        
-        // Add click handler to show node details
-        d3.select(canvas).on('click', function() {
-            const coords = d3.mouse(this);
-            const x = coords[0];
-            const y = coords[1];
-            
-            // Find the closest node
-            let closest = null;
-            let closestDistance = Infinity;
-            
-            nodes.forEach(node => {
-                const dx = node.x - x;
-                const dy = node.y - y;
-                const distance = dx * dx + dy * dy;
-                if (distance < closestDistance) {
-                    closest = node;
-                    closestDistance = distance;
-                }
-            });
-            
-            // Only select node if it's close enough (within radius)
-            if (closestDistance < 200) {
-                selectedNode = closest;
-                showNodeDetails(selectedNode);
-                
-                // Highlight connected nodes by redrawing
-                drawNetwork();
-            } else {
-                // Clear selection if clicking empty space
-                selectedNode = null;
-                hideNodeDetails();
-            }
-        });
-        
-    } else {
-        // For smaller networks, use SVG as before
-        // Create links with enhanced styling
-        const link = svg.append('g')
-            .selectAll('line')
-            .data(links)
-            .enter()
-            .append('line')
-            .attr('stroke', d => {
-                // For content network, color links based on similarity
-                if (networkType !== 'interaction' && d.similarity) {
-                    const hue = Math.min(120, Math.round(d.similarity * 120)); // 0-120 range (red to green)
-                    return `hsl(${hue}, 70%, 50%)`;
-                }
-                return '#999';
-            })
-            .attr('stroke-opacity', 0.6)
-            .attr('stroke-width', d => {
-                // For content network, adjust thickness based on similarity
-                if (networkType !== 'interaction' && d.similarity) {
-                    return Math.max(1, Math.min(5, d.similarity * 5));
-                }
-                return 1;
-            })
-            .on('mouseover', function(event, d) {
-                // Show tooltip with shared content info for content networks
-                if (networkType !== 'interaction' && d.shared_keywords) {
-                    d3.select(this)
-                        .attr('stroke-opacity', 1)
-                        .attr('stroke-width', d => Math.max(2, Math.min(6, (d.similarity || 0.2) * 6)));
-                    
-                    const keywordsText = d.shared_keywords.length > 0 
-                        ? `<strong>Shared Keywords:</strong> ${d.shared_keywords.join(', ')}<br>` 
-                        : '';
-                    
-                    const hashtagsText = d.shared_hashtags.length > 0 
-                        ? `<strong>Shared Hashtags:</strong> ${d.shared_hashtags.join(', ')}<br>` 
-                        : '';
-                    
-                    const urlsText = d.shared_urls.length > 0 
-                        ? `<strong>Shared URLs:</strong> ${d.shared_urls.slice(0, 2).join(', ')}${d.shared_urls.length > 2 ? '...' : ''}<br>` 
-                        : '';
-                    
-                    const tooltipContent = `
-                        <div class="network-tooltip">
-                            <strong>${d.source.id} ↔ ${d.target.id}</strong><br>
-                            <strong>Similarity:</strong> ${(d.similarity * 100).toFixed(1)}%<br>
-                            ${keywordsText}
-                            ${hashtagsText}
-                            ${urlsText}
-                            <strong>Total Shared Items:</strong> ${d.total_shared}
-                        </div>
-                    `;
-                    
-                    showTooltip(tooltipContent, event.pageX, event.pageY);
-                }
-            })
-            .on('mouseout', function() {
-                d3.select(this)
-                    .attr('stroke-opacity', 0.6)
-                    .attr('stroke-width', d => {
-                        if (networkType !== 'interaction' && d.similarity) {
-                            return Math.max(1, Math.min(5, d.similarity * 5));
-                        }
-                        return 1;
-                    });
-                
-                hideTooltip();
-            });
-        
-        // Create nodes with enhanced styling
-        const node = svg.append('g')
-            .selectAll('circle')
-            .data(nodes)
-            .enter()
-            .append('circle')
-            .attr('r', d => Math.min((d.size || 5), 12)) // Cap the radius
-            .attr('fill', d => color(d.group || 0))
-            .on('mouseover', function(event, d) {
-                // Highlight node on hover
-                d3.select(this)
-                    .attr('stroke', '#000')
-                    .attr('stroke-width', 2);
-                
-                // Show tooltip with node details
-                let tooltipContent = `
-                    <div class="network-tooltip">
-                        <strong>${d.id}</strong><br>
-                        <strong>Posts:</strong> ${d.posts}<br>
-                `;
-                
-                // Add content metadata for content networks
-                if (networkType !== 'interaction') {
-                    const keywordsText = d.top_keywords && d.top_keywords.length > 0 
-                        ? `<strong>Top Keywords:</strong> ${d.top_keywords.join(', ')}<br>` 
-                        : '';
-                    
-                    const hashtagsText = d.top_hashtags && d.top_hashtags.length > 0 
-                        ? `<strong>Top Hashtags:</strong> ${d.top_hashtags.join(', ')}<br>` 
-                        : '';
-                    
-                    tooltipContent += `
-                        ${keywordsText}
-                        ${hashtagsText}
-                        <strong>Keywords:</strong> ${d.keyword_count || 0}<br>
-                        <strong>Hashtags:</strong> ${d.hashtag_count || 0}<br>
-                        <strong>URLs:</strong> ${d.url_count || 0}
-                    `;
-                }
-                
-                tooltipContent += `</div>`;
-                
-                showTooltip(tooltipContent, event.pageX, event.pageY);
-            })
-            .on('mouseout', function() {
-                d3.select(this)
-                    .attr('stroke', '#fff')
-                    .attr('stroke-width', 1);
-                hideTooltip();
-            })
-            .on('click', function(event, d) {
-                showNodeDetails(d);
-                
-                // Highlight connected links and nodes
-                link.attr('stroke-opacity', l => 
-                    (l.source.id === d.id || l.target.id === d.id) ? 1 : 0.2
-                );
-                
-                node.attr('opacity', n => 
-                    (n.id === d.id || links.some(l => 
-                        (l.source.id === d.id && l.target.id === n.id) || 
-                        (l.target.id === d.id && l.source.id === n.id)
-                    )) ? 1 : 0.3
-                );
-            });
-        
-        // Add double-click handler to reset highlight
-        svg.on('dblclick', function() {
-            hideNodeDetails();
-            link.attr('stroke-opacity', 0.6);
-            node.attr('opacity', 1);
-        });
-        
-        // Update positions on tick
-        simulation.on('tick', () => {
-            // Constrain nodes to view
-            nodes.forEach(node => {
-                node.x = Math.max(10, Math.min(width - 10, node.x));
-                node.y = Math.max(10, Math.min(height - 10, node.y));
-            });
-            
-            link
-                .attr('x1', d => d.source.x)
-                .attr('y1', d => d.source.y)
-                .attr('x2', d => d.target.x)
-                .attr('y2', d => d.target.y);
-            
-            node
-                .attr('cx', d => d.x)
-                .attr('cy', d => d.y);
-        });
-    }
-    
-    // Tooltip functions
-    function showTooltip(html, x, y) {
-        const tooltip = d3.select('body')
-            .append('div')
-            .attr('class', 'network-tooltip-container')
-            .style('position', 'absolute')
-            .style('background', 'white')
-            .style('padding', '10px')
-            .style('border-radius', '5px')
-            .style('box-shadow', '0 0 10px rgba(0,0,0,0.2)')
-            .style('pointer-events', 'none')
-            .style('z-index', 1000)
-            .style('max-width', '300px')
-            .style('left', `${x + 10}px`)
-            .style('top', `${y - 10}px`)
-            .html(html);
-    }
-    
-    function hideTooltip() {
-        d3.select('.network-tooltip-container').remove();
-    }
-    
-    // Node details panel functions
-    function showNodeDetails(node) {
-        // Select or create the details panel
-        let detailsPanel = d3.select('#network-details-panel');
-        
-        if (detailsPanel.empty()) {
-            detailsPanel = d3.select('#network-graph-container')
-                .append('div')
-                .attr('id', 'network-details-panel')
-                .style('position', 'absolute')
-                .style('right', '20px')
-                .style('top', '70px')
-                .style('width', '300px')
-                .style('background', 'white')
-                .style('border-radius', '8px')
-                .style('box-shadow', '0 0 15px rgba(0,0,0,0.1)')
-                .style('padding', '15px')
-                .style('z-index', 10);
-        }
-        
-        // Generate connected nodes info
-        const connectedNodes = [];
-        links.forEach(link => {
-            if (link.source.id === node.id) {
-                connectedNodes.push({
-                    id: link.target.id,
-                    connection: networkType === 'interaction' ? 'Comment interaction' : 'Content similarity',
-                    details: link.shared_keywords || []
-                });
-            } else if (link.target.id === node.id) {
-                connectedNodes.push({
-                    id: link.source.id,
-                    connection: networkType === 'interaction' ? 'Comment interaction' : 'Content similarity',
-                    details: link.shared_keywords || []
-                });
-            }
-        });
-        
-        // Create HTML content
-        let htmlContent = `
-            <div class="details-header">
-                <h5>${node.id}</h5>
-                <button id="close-details" class="btn-close" aria-label="Close"></button>
-            </div>
-            <div class="details-content">
-                <p><strong>Posts:</strong> ${node.posts}</p>
-        `;
-        
-        // Add content-specific details for content networks
-        if (networkType !== 'interaction') {
-            htmlContent += `
-                <p><strong>Keywords:</strong> ${node.keyword_count || 0}</p>
-                <p><strong>Hashtags:</strong> ${node.hashtag_count || 0}</p>
-                <p><strong>URLs:</strong> ${node.url_count || 0}</p>
-            `;
-            
-            // Add top keywords section
-            if (node.top_keywords && node.top_keywords.length > 0) {
-                htmlContent += `
-                    <div class="mt-3">
-                        <strong>Top Keywords:</strong>
-                        <div class="keyword-tags">
-                            ${node.top_keywords.map(kw => `<span class="badge bg-light text-dark">${kw}</span>`).join(' ')}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Add top hashtags section
-            if (node.top_hashtags && node.top_hashtags.length > 0) {
-                htmlContent += `
-                    <div class="mt-3">
-                        <strong>Top Hashtags:</strong>
-                        <div class="hashtag-tags">
-                            ${node.top_hashtags.map(ht => `<span class="badge bg-info text-dark">${ht}</span>`).join(' ')}
-                        </div>
-                    </div>
-                `;
-            }
-        }
-        
-        // Add connected nodes section
-        if (connectedNodes.length > 0) {
-            htmlContent += `
-                <div class="mt-3">
-                    <strong>Connected to ${connectedNodes.length} users:</strong>
-                    <ul class="connected-list">
-            `;
-            
-            // Sort connected nodes by most similar first for content networks
-            if (networkType !== 'interaction') {
-                connectedNodes.sort((a, b) => b.details.length - a.details.length);
-            }
-            
-            // Show up to 10 connections
-            connectedNodes.slice(0, 10).forEach(conn => {
-                if (networkType === 'interaction') {
-                    htmlContent += `<li>${conn.id}</li>`;
-                } else {
-                    // Find the link with similarity info
-                    const connectionLink = links.find(l => 
-                        (l.source.id === node.id && l.target.id === conn.id) || 
-                        (l.target.id === node.id && l.source.id === conn.id)
-                    );
-                    
-                    const similarityText = connectionLink && connectionLink.similarity 
-                        ? `(${(connectionLink.similarity * 100).toFixed(1)}% similar)` 
-                        : '';
-                    
-                    const keywordsText = connectionLink && connectionLink.shared_keywords && connectionLink.shared_keywords.length > 0
-                        ? `<small>Keywords: ${connectionLink.shared_keywords.slice(0, 3).join(', ')}${connectionLink.shared_keywords.length > 3 ? '...' : ''}</small>`
-                        : '';
-                    
-                    htmlContent += `
-                        <li>
-                            <strong>${conn.id}</strong> ${similarityText}
-                            <div>${keywordsText}</div>
-                        </li>
-                    `;
-                }
-            });
-            
-            // Add indicator if there are more connections
-            if (connectedNodes.length > 10) {
-                htmlContent += `<li class="text-muted">...and ${connectedNodes.length - 10} more</li>`;
-            }
-            
-            htmlContent += `
-                    </ul>
-                </div>
-            `;
-        }
-        
-        htmlContent += `</div>`;
-        
-        // Set the content
-        detailsPanel.html(htmlContent);
-        
-        // Add event handler for close button
-        detailsPanel.select('#close-details').on('click', hideNodeDetails);
-    }
-    
-    function hideNodeDetails() {
-        // Remove the details panel
-        d3.select('#network-details-panel').remove();
-        
-        // Reset link and node styling
-        if (d3.select('#network-graph svg').size() > 0) {
-            const link = d3.selectAll('#network-graph line');
-            const node = d3.selectAll('#network-graph circle');
-            
-            link.attr('stroke-opacity', 0.6);
-            node.attr('opacity', 1);
-        }
-    }
-    
-    // Functions for node dragging
-    function dragstarted(event) {
-        if (!event.active) simulation.alphaTarget(0.3).restart();
-        event.subject.fx = event.subject.x;
-        event.subject.fy = event.subject.y;
-    }
-    
-    function dragged(event) {
-        event.subject.fx = event.x;
-        event.subject.fy = event.y;
-    }
-    
-    function dragended(event) {
-        if (!event.active) simulation.alphaTarget(0);
-        event.subject.fx = null;
-        event.subject.fy = null;
-    }
+    console.log('Network analysis skipped - section has been removed');
+    // No longer tries to access network-graph element
+    return Promise.resolve();
 }
 
 // Topic Analysis Visualization - Enhanced version
@@ -2746,314 +2103,128 @@ async function updateCoordinatedBehavior() {
         }
         
         // Safely clear previous visualizations
-        const coordGraphEl = document.getElementById('coordinated-graph');
         const coordGroupsEl = document.getElementById('coordinated-groups');
-        
-        if (coordGraphEl) d3.select('#coordinated-graph').html('');
         if (coordGroupsEl) d3.select('#coordinated-groups').html('');
         
         // Validate data structure to avoid errors
         if (!data.network || !data.network.nodes || !data.network.nodes.length) {
-            if (coordGraphEl) coordGraphEl.innerHTML = '<div class="alert alert-info">No coordinated behavior detected with current parameters.</div>';
-            if (coordGroupsEl) coordGroupsEl.innerHTML = '<div class="alert alert-info">Try adjusting the time window or similarity threshold parameters.</div>';
+            if (coordGroupsEl) coordGroupsEl.innerHTML = '<div class="alert alert-info">No coordinated behavior detected with current parameters. Try adjusting the time window or similarity threshold parameters.</div>';
             return;
         }
         
-        // Only proceed with visualization if elements exist
-        if (!coordGraphEl) {
-            console.warn('Coordinated graph container not found');
-            return;
-        }
+        // Update the avg-group-size and authors-percentage elements if they exist
+        const avgGroupSizeEl = document.getElementById('avg-group-size');
+        if (avgGroupSizeEl) avgGroupSizeEl.textContent = metrics.avg_group_size ? metrics.avg_group_size.toFixed(1) : '0';
         
-        // 1. Render the enhanced network graph
-        const width = document.getElementById('coordinated-graph').clientWidth;
-        const height = 500;
+        const authorsPercentageEl = document.getElementById('authors-percentage');
+        if (authorsPercentageEl) authorsPercentageEl.textContent = metrics.authors_involved_percentage ? metrics.authors_involved_percentage.toFixed(1) + '%' : '0%';
         
-        const svg = d3.select('#coordinated-graph')
-            .append('svg')
-            .attr('width', width)
-            .attr('height', height);
-        
-        // Add a background rectangle for zoom/pan interactions
-        svg.append('rect')
-            .attr('width', width)
-            .attr('height', height)
-            .attr('fill', 'white');
-            
-        // Create a group for the network
-        const g = svg.append('g');
-        
-        // Define color scale for the network - color by posts count
-        const nodeColor = d3.scaleLinear()
-            .domain([1, d3.max(data.network.nodes, d => d.posts_count || 1)])
-            .range(['#6c757d', '#dc3545']);
-        
-        // Define node size scale based on involvement in coordinated groups
-        const nodeSize = d3.scaleLinear()
-            .domain([1, d3.max(data.network.nodes, d => d.coordinated_groups_count || 1)])
-            .range([5, 15]);
-        
-        // Define edge width scale based on weight
-        const linkWidth = d3.scaleLinear()
-            .domain([1, d3.max(data.network.links, d => d.weight || 1)])
-            .range([1, 5]);
-        
-        // Create simulation with improved forces
-        const simulation = d3.forceSimulation(data.network.nodes)
-            .force('link', d3.forceLink(data.network.links)
-                .id(d => d.id)
-                .distance(d => 100 / (d.weight || 1)))
-            .force('charge', d3.forceManyBody()
-                .strength(d => -50 - (d.coordinated_groups_count || 1) * 10))
-            .force('center', d3.forceCenter(width / 2, height / 2))
-            .force('collision', d3.forceCollide(d => nodeSize(d.coordinated_groups_count || 1) + 2));
-        
-        // Add zoom behavior
-        const zoom = d3.zoom()
-            .scaleExtent([0.1, 4])
-            .on('zoom', (event) => {
-                g.attr('transform', event.transform);
-            });
-        
-        svg.call(zoom);
-        
-        // Draw links with width based on weight
-        const link = g.append('g')
-            .selectAll('line')
-            .data(data.network.links)
-            .enter()
-            .append('line')
-            .attr('stroke', '#999')
-            .attr('stroke-opacity', 0.6)
-            .attr('stroke-width', d => linkWidth(d.weight || 1));
-        
-        // Draw nodes with size and color based on metrics
-        const node = g.append('g')
-            .selectAll('circle')
-            .data(data.network.nodes)
-            .enter()
-            .append('circle')
-            .attr('r', d => nodeSize(d.coordinated_groups_count || 1))
-            .attr('fill', d => nodeColor(d.posts_count || 1))
-            .attr('stroke', '#fff')
-            .attr('stroke-width', 1.5)
-            .call(d3.drag()
-                .on('start', dragstarted)
-                .on('drag', dragged)
-                .on('end', dragended));
-        
-        // Add tooltips to nodes with more information
-        node.append('title')
-            .text(d => `User: ${d.id}\nPosts: ${d.posts_count || 'unknown'}\nInvolved in ${d.coordinated_groups_count || 0} coordinated groups`);
-        
-        // Add legend for node size and color
-        const legend = svg.append('g')
-            .attr('transform', 'translate(20, 20)');
-        
-        legend.append('text')
-            .attr('x', 0)
-            .attr('y', 0)
-            .style('font-size', '12px')
-            .style('font-weight', 'bold')
-            .text('Network Legend');
-        
-        // Node size legend
-        legend.append('text')
-            .attr('x', 0)
-            .attr('y', 20)
-            .style('font-size', '10px')
-            .text('Node size = Coordination frequency');
-        
-        // Node color legend
-        legend.append('text')
-            .attr('x', 0)
-            .attr('y', 35)
-            .style('font-size', '10px')
-            .text('Node color = Number of posts');
-        
-        // Link width legend
-        legend.append('text')
-            .attr('x', 0)
-            .attr('y', 50)
-            .style('font-size', '10px')
-            .text('Link width = Coordination strength');
-        
-        // Update positions on simulation tick
-        simulation.on('tick', () => {
-            link
-                .attr('x1', d => d.source.x)
-                .attr('y1', d => d.source.y)
-                .attr('x2', d => d.target.x)
-                .attr('y2', d => d.target.y);
-            
-            node
-                .attr('cx', d => d.x = Math.max(nodeSize(d.coordinated_groups_count || 1), Math.min(width - nodeSize(d.coordinated_groups_count || 1), d.x)))
-                .attr('cy', d => d.y = Math.max(nodeSize(d.coordinated_groups_count || 1), Math.min(height - nodeSize(d.coordinated_groups_count || 1), d.y)));
-        });
-        
-        // Drag functions
-        function dragstarted(event) {
-            if (!event.active) simulation.alphaTarget(0.3).restart();
-            event.subject.fx = event.subject.x;
-            event.subject.fy = event.subject.y;
-        }
-        
-        function dragged(event) {
-            event.subject.fx = event.x;
-            event.subject.fy = event.y;
-        }
-        
-        function dragended(event) {
-            if (!event.active) simulation.alphaTarget(0);
-            event.subject.fx = null;
-            event.subject.fy = null;
-        }
+        // Skip network graph rendering since we've removed that section
         
         // 2. Render the enhanced coordinated groups panel
         const groupsContainer = d3.select('#coordinated-groups');
         
-        // Create a searchable, sortable table for the groups
-        const tableContainer = groupsContainer.append('div')
-            .attr('class', 'table-responsive');
-        
-        const tableHeader = `
-            <div class="mb-3">
-                <input type="text" class="form-control" id="group-search" placeholder="Search in coordinated groups...">
-            </div>
-            <table class="table table-sm table-hover">
-                <thead>
-                    <tr>
-                        <th scope="col" class="sortable" data-sort="id">Group ID</th>
-                        <th scope="col" class="sortable" data-sort="size">Size</th>
-                        <th scope="col" class="sortable" data-sort="authors">Authors</th>
-                        <th scope="col" class="sortable" data-sort="timespan">Time Span</th>
-                        <th scope="col">Details</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-        
-        const tableFooter = `
-                </tbody>
-            </table>
-        `;
-        
-        let tableRows = '';
-        data.groups.forEach(group => {
-            const authors = new Set(group.posts.map(p => p.author));
-            const timeSpanSeconds = group.time_span || 0;
-            const timeSpanFormatted = timeSpanSeconds < 60 
-                ? `${timeSpanSeconds.toFixed(0)}s` 
-                : `${(timeSpanSeconds/60).toFixed(1)}m`;
-            
-            tableRows += `
-                <tr>
-                    <td>${group.group_id}</td>
-                    <td>${group.size}</td>
-                    <td>${authors.size}</td>
-                    <td>${timeSpanFormatted}</td>
-                    <td><button class="btn btn-sm btn-outline-primary view-group" data-group-id="${group.group_id}">View</button></td>
-                </tr>
-            `;
-        });
-        
-        tableContainer.html(tableHeader + tableRows + tableFooter);
-        
-        // Add group detail modal
-        const modalContainer = d3.select('body')
-            .append('div')
-            .attr('class', 'modal fade')
-            .attr('id', 'group-detail-modal')
-            .attr('tabindex', '-1')
-            .html(`
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Group Details</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body" id="group-detail-content">
-                        </div>
-                    </div>
+        if (!groupsContainer.empty()) {
+            // Add search functionality
+            groupsContainer.html(`
+                <div class="mb-3">
+                    <input type="text" class="form-control" id="group-search" placeholder="Search in coordinated groups...">
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Group ID</th>
+                                <th>Size</th>
+                                <th>Time Span</th>
+                                <th>Authors</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.groups.map((group, idx) => {
+                                const timeSpanMinutes = Math.ceil(group.time_span / 60);
+                                return `
+                                    <tr data-group-id="${group.group_id}">
+                                        <td><span class="badge bg-primary">#${group.group_id}</span></td>
+                                        <td>${group.size} posts</td>
+                                        <td>${timeSpanMinutes} min</td>
+                                        <td>${group.unique_authors} authors</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-secondary toggle-details">
+                                                <i class="bi bi-chevron-down"></i> View Details
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <tr class="group-details" style="display: none;">
+                                        <td colspan="5">
+                                            <div class="card">
+                                                <div class="card-body">
+                                                    <h6 class="card-subtitle mb-2 text-muted">Posts in this group:</h6>
+                                                    <div class="coordinated-posts mt-3">
+                                                        ${group.posts.map(post => {
+                                                            const postTime = new Date(post.created_utc).toLocaleString();
+                                                            return `
+                                                                <div class="coordinated-group mb-3">
+                                                                    <h6>${post.title}</h6>
+                                                                    <div class="small text-muted mb-2">
+                                                                        Posted by u/${post.author} at ${postTime}
+                                                                    </div>
+                                                                    <div class="coordinated-content">
+                                                                        ${post.selftext ? `<p>${post.selftext}</p>` : '<p><em>No text content</em></p>'}
+                                                                    </div>
+                                                                    <div class="mt-2">
+                                                                        <a href="${post.url}" target="_blank" class="btn btn-sm btn-link">
+                                                                            <i class="bi bi-box-arrow-up-right"></i> View Original
+                                                                        </a>
+                                                                        ${post.similarity_score ? 
+                                                                            `<span class="badge bg-info text-dark">
+                                                                                Similarity: ${Math.round(post.similarity_score * 100)}%
+                                                                            </span>` : ''
+                                                                        }
+                                                                    </div>
+                                                                </div>
+                                                            `;
+                                                        }).join('')}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
                 </div>
             `);
-        
-        // Add event listeners to view buttons after they're in the DOM
-        setTimeout(() => {
-            document.querySelectorAll('.view-group').forEach(button => {
-                button.addEventListener('click', () => {
-                    const groupId = parseInt(button.getAttribute('data-group-id'));
-                    const group = data.groups.find(g => g.group_id === groupId);
+            
+            // Add toggle behavior for group details
+            document.querySelectorAll('.toggle-details').forEach(button => {
+                button.addEventListener('click', function() {
+                    const row = this.closest('tr');
+                    const detailsRow = row.nextElementSibling;
+                    const isHidden = detailsRow.style.display === 'none';
                     
-                    if (group) {
-                        // Populate modal with group details
-                        document.getElementById('group-detail-content').innerHTML = `
-                            <div class="group-metadata mb-3">
-                                <div class="row">
-                                    <div class="col-md-3">
-                                        <div class="card">
-                                            <div class="card-body text-center">
-                                                <div class="h3">${group.size}</div>
-                                                <div class="small text-muted">Posts</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <div class="card">
-                                            <div class="card-body text-center">
-                                                <div class="h3">${group.unique_authors}</div>
-                                                <div class="small text-muted">Authors</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <div class="card">
-                                            <div class="card-body text-center">
-                                                <div class="h3">${group.shared_links_count || 0}</div>
-                                                <div class="small text-muted">Shared Links</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <div class="card">
-                                            <div class="card-body text-center">
-                                                <div class="h3">${(group.time_span/60).toFixed(1)}</div>
-                                                <div class="small text-muted">Minutes Span</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <h6>Posts in this group:</h6>
-                            <div class="posts-container">
-                                ${group.posts.map((post, i) => `
-                                    <div class="card mb-2 ${i > 0 ? 'border-primary' : ''}">
-                                        <div class="card-header d-flex justify-content-between align-items-center ${i > 0 ? 'bg-light' : ''}">
-                                            <span>u/${post.author}</span>
-                                            <span class="small text-muted">${new Date(post.created_utc).toLocaleString()}</span>
-                                        </div>
-                                        <div class="card-body">
-                                            <h6>${post.title}</h6>
-                                            ${post.selftext ? `<p class="small">${post.selftext}</p>` : ''}
-                                            ${post.similarity_score ? `
-                                                <div class="d-flex justify-content-between small text-muted">
-                                                    <span>Similarity to original: ${(post.similarity_score * 100).toFixed(1)}%</span>
-                                                    ${post.shared_links ? '<span class="badge bg-primary">Shared Links</span>' : ''}
-                                                    ${post.shared_hashtags ? '<span class="badge bg-secondary">Shared Hashtags</span>' : ''}
-                                                </div>
-                                            ` : ''}
-                                        </div>
-                                        <div class="card-footer">
-                                            <a href="${post.url}" target="_blank" class="btn btn-sm btn-outline-secondary">View Original</a>
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        `;
-                        
-                        // Show the modal
-                        const modal = new bootstrap.Modal(document.getElementById('group-detail-modal'));
-                        modal.show();
+                    // Hide all other detail rows
+                    document.querySelectorAll('.group-details').forEach(r => {
+                        r.style.display = 'none';
+                    });
+                    
+                    document.querySelectorAll('.toggle-details i').forEach(icon => {
+                        icon.className = 'bi bi-chevron-down';
+                    });
+                    
+                    // Toggle this detail row
+                    if (isHidden) {
+                        detailsRow.style.display = 'table-row';
+                        this.querySelector('i').className = 'bi bi-chevron-up';
+                        this.textContent = ' Hide Details';
+                        this.prepend(this.querySelector('i'));
+                    } else {
+                        detailsRow.style.display = 'none';
+                        this.querySelector('i').className = 'bi bi-chevron-down';
+                        this.textContent = ' View Details';
+                        this.prepend(this.querySelector('i'));
                     }
                 });
             });
@@ -3063,58 +2234,74 @@ async function updateCoordinatedBehavior() {
             if (searchInput) {
                 searchInput.addEventListener('input', function() {
                     const searchTerm = this.value.toLowerCase();
+                    
                     document.querySelectorAll('#coordinated-groups tbody tr').forEach(row => {
-                        const text = row.textContent.toLowerCase();
-                        row.style.display = text.includes(searchTerm) ? '' : 'none';
+                        if (!row.classList.contains('group-details')) {
+                            const rowText = row.textContent.toLowerCase();
+                            const detailsRow = row.nextElementSibling;
+                            
+                            if (rowText.includes(searchTerm) || detailsRow.textContent.toLowerCase().includes(searchTerm)) {
+                                row.style.display = '';
+                                detailsRow.style.display = searchTerm && searchTerm.trim() !== '' ? 'table-row' : 'none';
+                                
+                                if (searchTerm && searchTerm.trim() !== '') {
+                                    row.querySelector('.toggle-details i').className = 'bi bi-chevron-up';
+                                    row.querySelector('.toggle-details').textContent = ' Hide Details';
+                                    row.querySelector('.toggle-details').prepend(row.querySelector('.toggle-details i'));
+                                }
+                            } else {
+                                row.style.display = 'none';
+                                detailsRow.style.display = 'none';
+                            }
+                        }
                     });
+                    
+                    // If search field is cleared, collapse all details
+                    if (!searchTerm) {
+                        const tbody = document.querySelector('#coordinated-groups tbody');
+                        if (tbody) {
+                            document.querySelectorAll('.group-details').forEach(r => {
+                                r.style.display = 'none';
+                            });
+                            
+                            document.querySelectorAll('.toggle-details i').forEach(icon => {
+                                icon.className = 'bi bi-chevron-down';
+                            });
+                            
+                            document.querySelectorAll('.toggle-details').forEach(button => {
+                                button.textContent = ' View Details';
+                                button.prepend(button.querySelector('i'));
+                            });
+                        }
+                    }
                 });
             }
-            
-            // Add sorting functionality
-            document.querySelectorAll('.sortable').forEach(header => {
-                header.addEventListener('click', function() {
-                    const sortBy = this.getAttribute('data-sort');
-                    const tbody = document.querySelector('#coordinated-groups tbody');
-                    const rows = Array.from(tbody.querySelectorAll('tr'));
-                    
-                    // Sort rows
-                    rows.sort((a, b) => {
-                        const aVal = a.children[Array.from(this.parentNode.children).indexOf(this)].textContent;
-                        const bVal = b.children[Array.from(this.parentNode.children).indexOf(this)].textContent;
-                        
-                        // Check if sorting numbers or text
-                        if (!isNaN(aVal) && !isNaN(bVal)) {
-                            return Number(aVal) - Number(bVal);
-                        }
-                        return aVal.localeCompare(bVal);
-                    });
-                    
-                    // Toggle sort direction
-                    if (this.classList.contains('asc')) {
-                        rows.reverse();
-                        this.classList.remove('asc');
-                        this.classList.add('desc');
-                    } else {
-                        this.classList.remove('desc');
-                        this.classList.add('asc');
-                    }
-                    
-                    // Clear sort indicators on other headers
-                    document.querySelectorAll('.sortable').forEach(h => {
-                        if (h !== this) {
-                            h.classList.remove('asc', 'desc');
-                        }
-                    });
-                    
-                    // Update DOM
-                    tbody.innerHTML = '';
-                    rows.forEach(row => tbody.appendChild(row));
-                });
-            });
-        }, 100);
+        }
     } catch (error) {
         console.error('Error updating coordinated behavior:', error);
+        
+        const coordGroupsEl = document.getElementById('coordinated-groups');
+        if (coordGroupsEl) {
+            coordGroupsEl.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Error loading coordinated behavior data. Please try again.</div>';
+        }
     }
+}
+
+function dragstarted(event) {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+    event.subject.fx = event.subject.x;
+    event.subject.fy = event.subject.y;
+}
+
+function dragged(event) {
+    event.subject.fx = event.x;
+    event.subject.fy = event.y;
+}
+
+function dragended(event) {
+    if (!event.active) simulation.alphaTarget(0);
+    event.subject.fx = null;
+    event.subject.fy = null;
 }
 
 // Data storytelling function - generates a narrative from visualizations
@@ -3594,9 +2781,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Set up event listeners
     document.getElementById('analyze-btn').addEventListener('click', handleAnalyzeClick);
     
-    // Set up network controls
-    setupNetworkControls();
-    
     // Set up topics range slider
     const topicsCountSlider = document.getElementById('topics-count');
     if (topicsCountSlider) {
@@ -3621,6 +2805,32 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!activeQuery) return;
             
             // ... existing code ...
+        });
+    }
+    
+    // Event listener for manual update of coordinated behavior (removed button)
+    const timeWindowSlider = document.getElementById('time-window');
+    const similarityThresholdSlider = document.getElementById('similarity-threshold');
+    
+    if (timeWindowSlider) {
+        timeWindowSlider.addEventListener('change', async () => {
+            await updateCoordinatedBehavior();
+            // Update coordinated description again after refresh
+            updateSectionDescription('coordinated', '#coordinated-description', {
+                timeWindow: document.getElementById('time-window').value,
+                similarityThreshold: document.getElementById('similarity-threshold').value
+            });
+        });
+    }
+    
+    if (similarityThresholdSlider) {
+        similarityThresholdSlider.addEventListener('change', async () => {
+            await updateCoordinatedBehavior();
+            // Update coordinated description again after refresh
+            updateSectionDescription('coordinated', '#coordinated-description', {
+                timeWindow: document.getElementById('time-window').value,
+                similarityThreshold: document.getElementById('similarity-threshold').value
+            });
         });
     }
 });
@@ -4428,10 +3638,9 @@ async function handleAnalyzeClick() {
     
     try {
         // Clear all previous visualizations first
-        document.getElementById('network-graph').innerHTML = '';
         document.getElementById('topics-container').innerHTML = '';
         document.getElementById('contributors-overview').innerHTML = '';
-        document.getElementById('coordinated-graph').innerHTML = '';
+        // Remove reference to network-graph which is no longer needed
         document.getElementById('coordinated-groups').innerHTML = '';
         document.getElementById('word-cloud').innerHTML = '';
         document.getElementById('timeseries-chart').innerHTML = '';
@@ -4440,6 +3649,7 @@ async function handleAnalyzeClick() {
         document.getElementById('semantic-map-container').innerHTML = '';
         document.getElementById('point-details').innerHTML = '<p class="text-muted">Click on a point to see details</p>';
         document.getElementById('topic-clusters').innerHTML = '<p class="text-muted">Loading topic clusters...</p>';
+        document.getElementById('community-distribution').innerHTML = '';
         
         // Reset data story with placeholder
         document.getElementById('data-story').innerHTML = `
@@ -4496,10 +3706,10 @@ async function handleAnalyzeClick() {
         // PERFORMANCE OPTIMIZATION: Create placeholder loading indicators for remaining components
         document.getElementById('timeseries-chart').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading time series analysis...</div>';
         document.getElementById('topic-evolution-chart').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading topic evolution analysis...</div>';
-        document.getElementById('network-graph').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading network analysis...</div>';
+        // Remove reference to network-graph which no longer exists
         document.getElementById('topics-container').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading topic analysis...</div>';
-        document.getElementById('coordinated-graph').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading coordinated behavior analysis...</div>';
-        document.getElementById('coordinated-groups').innerHTML = '';
+        document.getElementById('coordinated-groups').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading coordinated behavior analysis...</div>';
+        document.getElementById('community-distribution').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading community distribution...</div>';
         document.getElementById('semantic-map-container').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading semantic map analysis...</div>';
         
         // Phase 2: Load the data story and time series (medium weight)
@@ -4547,14 +3757,17 @@ async function handleAnalyzeClick() {
                     }
                     
                     try {
-                        await updateNetwork(query);
+                        // Network Analysis section has been removed
+                        // Skip network update since that section no longer exists
+                        // await updateNetwork(query);
                         // Update network description after data is loaded
-                        updateSectionDescription('network', '#network-description', {
-                            nodeCount: document.querySelectorAll('#network-graph circle').length
-                        });
+                        // updateSectionDescription('network', '#network-description', {
+                        //     nodeCount: document.querySelectorAll('#network-graph circle').length
+                        // });
                     } catch (error) {
                         console.error('Error updating network:', error);
-                        document.getElementById('network-graph').innerHTML = '<p class="text-danger">Error loading network data</p>';
+                        // Removed reference to network-graph which no longer exists
+                        // document.getElementById('network-graph').innerHTML = '<p class="text-danger">Error loading network data</p>';
                     }
                     
                     try {
@@ -4566,8 +3779,8 @@ async function handleAnalyzeClick() {
                         });
                     } catch (error) {
                         console.error('Error updating coordinated behavior:', error);
-                        document.getElementById('coordinated-graph').innerHTML = '<p class="text-danger">Error loading coordinated behavior data</p>';
-                        document.getElementById('coordinated-groups').innerHTML = '<p class="text-danger">Error loading coordinated groups data</p>';
+                        // Remove reference to coordinated-graph which no longer exists
+                        document.getElementById('coordinated-groups').innerHTML = '<p class="text-danger">Error loading coordinated behavior data</p>';
                     }
                     
                     // Update pie chart of contributors

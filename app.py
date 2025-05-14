@@ -1438,8 +1438,8 @@ def get_dynamic_description():
         if not has_groq or not GROQ_API_KEY:
             return jsonify({'description': default_description.get(section, """
                 <div class='description-content'>
-                    <h4 class='section-heading'>Community Distribution Analysis</h4>
-                    <p>Visualizes pie chart of communities (or accounts) on the social media platform that are key contributors to the conversation.</p>                                      
+                    <h4 class='section-heading'>Data Analysis</h4>
+                    <p>This visualization uncovers patterns, insights, and meaningful trends based on the conversation.</p>                                      
                 </div>
             """)})
         
@@ -1642,8 +1642,8 @@ def get_dynamic_description():
             # Fallback to default descriptions
             return jsonify({'description': default_description.get(section, """
                 <div class='description-content'>
-                    <h4 class='section-heading'>Community Distribution Analysis</h4>
-                    <p>Visualizes pie chart of communities (or accounts) on the social media platform that are key contributors to the conversation.</p>
+                    <h4 class='section-heading'>Data Analysis</h4>
+                    <p>This visualization uncovers patterns, insights, and meaningful trends based on the conversation.</p>
                 </div>
             """)})
             
@@ -1652,8 +1652,8 @@ def get_dynamic_description():
         return jsonify({
             'description': default_description.get(section, """
                 <div class='description-content'>
-                    <h4 class='section-heading'>Community Distribution Analysis</h4>
-                    <p>Visualizes pie chart of communities (or accounts) on the social media platform that are key contributors to the conversation.</p>
+                    <h4 class='section-heading'>Data Analysis</h4>
+                    <p>This visualization uncovers patterns, insights, and meaningful trends based on the conversation.</p>
                 </div>
             """),
             'error': str(e)
