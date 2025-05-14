@@ -83,7 +83,7 @@ async function updateSectionDescription(sectionId, descriptionElementSelector, c
         if (!descriptionElement) return;
         
         // Show loading state
-        descriptionElement.innerHTML = `<div class="spinner-border spinner-border-sm" role="status"></div> Generating description...`;
+        descriptionElement.innerHTML = `<i class="bi bi-info-circle"></i> <span class="spinner-border spinner-border-sm" role="status"></span> Generating description...`;
         
         // Get dynamic description
         const description = await getDynamicDescription(sectionId, activeQuery, context);
@@ -92,6 +92,26 @@ async function updateSectionDescription(sectionId, descriptionElementSelector, c
         descriptionElement.innerHTML = `<i class="bi bi-info-circle"></i> ${description}`;
     } catch (error) {
         console.error(`Error updating description for ${sectionId}:`, error);
+        // In case of error, restore the static description that was in the HTML
+        const staticDescriptions = {
+            'ai_insights': 'Provides detailed AI-generated insights about social media trends, sentiment analysis, and key discussion themes from your search results.',
+            'data_story': 'Creates a narrative analysis connecting key insights, trends, and patterns from your query into a comprehensive data story.',
+            'word_cloud': 'Visualizes the most frequently occurring terms in your query results with size indicating prominence.',
+            'contributors': 'Identifies the most active users posting content matching your search criteria.',
+            'timeseries': 'Tracks post volume over time to reveal when discussions peaked, declined, or remained steady.',
+            'topic_evolution': 'Shows how conversation themes and topics change in prominence across different time periods.',
+            'network': 'Maps connections between users based on their interactions, revealing community structure and influence patterns.',
+            'topics': 'Identifies distinct topics within the content using Latent Dirichlet Allocation (LDA) to reveal key themes.',
+            'semantic_map': 'Creates a 2D visualization where posts are positioned by semantic similarity, revealing content relationships.',
+            'coordinated': 'Detects potentially coordinated posting behavior by identifying similar content posted within a short time window.',
+            'coordinated_groups': 'Groups posts that share similar content and were created within the same time window.',
+            'community_distribution': 'Shows the relative proportions of different communities or subreddits represented in your search results.'
+        };
+        
+        // Fall back to the static description for this section
+        if (staticDescriptions[sectionId]) {
+            descriptionElement.innerHTML = `<i class="bi bi-info-circle"></i> ${staticDescriptions[sectionId]}`;
+        }
     }
 }
 
@@ -106,6 +126,43 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
     activeQuery = query;
     startDate = document.getElementById('start-date').value;
     endDate = document.getElementById('end-date').value;
+    
+    // Update all description areas to show loading state before starting analysis
+    const descriptionAreas = [
+        {id: 'ai-insights-description', section: 'ai_insights'},
+        {id: 'data-story-description', section: 'data_story'},
+        {id: 'word-cloud-description', section: 'word_cloud'},
+        {id: 'contributors-description', section: 'contributors'},
+        {id: 'metrics-description', section: 'metrics'},
+        {id: 'timeseries-description', section: 'timeseries'},
+        {id: 'topic-evolution-description', section: 'topic_evolution'},
+        {id: 'network-description', section: 'network'},
+        {id: 'topics-description', section: 'topics'},
+        {id: 'semantic-map-description', section: 'semantic_map'},
+        {id: 'coordinated-description', section: 'coordinated'},
+        {id: 'coordinated-groups-description', section: 'coordinated_groups'},
+        {id: 'community-distribution-description', section: 'community_distribution'}
+    ];
+    
+    // Replace static descriptions with loading indicators
+    descriptionAreas.forEach(item => {
+        const element = document.getElementById(item.id);
+        if (element) {
+            element.innerHTML = `<i class="bi bi-info-circle"></i> <span class="spinner-border spinner-border-sm" role="status"></span> Loading ${item.section.replace('_', ' ')} insights...`;
+        }
+    });
+    
+    // Update the semantic map container and topic clusters with loading indicators
+    document.getElementById('semantic-map-container').innerHTML = `
+        <div class="section-loading">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+            Loading semantic map...
+        </div>
+    `;
+    
+    document.getElementById('topic-clusters').innerHTML = `
+        <p class="text-muted"><span class="spinner-border spinner-border-sm text-primary" role="status"></span> Loading topic clusters...</p>
+    `;
     
     showLoading(true);
     
@@ -388,8 +445,6 @@ async function updateOverview(query) {
             
             // Display model used and enhanced summary
             document.getElementById('ai-summary').innerHTML = `
-                <h4>Analysis of "${query}"</h4>
-                <div class="alert alert-info small mb-2">Analysis powered by ${summaryData.model_used}</div>
                 <p>${summaryData.summary}</p>
             `;
             
@@ -402,6 +457,35 @@ async function updateOverview(query) {
             document.getElementById('avg-comments').textContent = typeof metrics.avg_comments === 'number' ? 
                 metrics.avg_comments.toFixed(1) : metrics.avg_comments;
             document.getElementById('time-span').textContent = metrics.days_span || '-';
+            
+            // Update metrics description with actual data from the query
+            const metricsDescriptionEl = document.getElementById('metrics-description');
+            if (metricsDescriptionEl) {
+                try {
+                    const keywordsList = metrics.top_keywords && metrics.top_keywords.length > 0 
+                        ? metrics.top_keywords.slice(0, 3).join(', ') 
+                        : '';
+                    
+                    // Create a specific description based on actual query results
+                    let description = `Showing ${metrics.total_posts} posts from ${metrics.unique_authors} unique authors`;
+                    if (keywordsList) {
+                        description += ` with popular keywords: ${keywordsList}`;
+                    }
+                    if (metrics.days_span) {
+                        description += `. Data spans ${metrics.days_span} days`;
+                    }
+                    if (typeof metrics.avg_comments === 'number') {
+                        description += ` with an average of ${metrics.avg_comments.toFixed(1)} comments per post`;
+                    }
+                    description += '.';
+                    
+                    // Update the DOM directly
+                    metricsDescriptionEl.innerHTML = `<i class="bi bi-info-circle"></i> ${description}`;
+                } catch (err) {
+                    console.error('Failed to update metrics description:', err);
+                    // Keep the existing message if there's an error
+                }
+            }
             
             // Create extended metrics display
             let metricsContainer = document.getElementById('metrics-container');
