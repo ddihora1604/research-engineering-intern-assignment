@@ -812,6 +812,154 @@
             max-height: 250px;
             overflow-y: auto;
         }
+        
+        /* Styling for structured descriptions */
+        .description-content {
+            font-family: 'Lora', serif;
+            line-height: 1.6;
+            color: var(--text-primary);
+            margin-top: 5px;
+        }
+        
+        .description-content h4.section-heading {
+            color: var(--primary-dark);
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            border-bottom: 1px solid var(--primary-light);
+            padding-bottom: 0.25rem;
+        }
+        
+        .description-content h5.subsection-heading {
+            color: var(--secondary-color);
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .description-content p {
+            margin-bottom: 0.75rem;
+            text-align: justify;
+        }
+        
+        .description-content ul, .description-content ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .description-content li {
+            margin-bottom: 0.5rem;
+            position: relative;
+        }
+        
+        .description-content ul li::marker {
+            color: var(--primary-color);
+        }
+        
+        .description-content ol li::marker {
+            color: var(--secondary-color);
+            font-weight: 600;
+        }
+        
+        /* Alert box that contains descriptions */
+        .alert-info {
+            background-color: var(--primary-light);
+            border-color: var(--primary-color);
+            color: var(--text-primary);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .alert-info:hover {
+            background-color: #e5edf8;
+            box-shadow: 0 2px 6px rgba(74, 111, 165, 0.15);
+        }
+        
+        .alert-info .bi-info-circle {
+            color: var(--primary-color);
+            margin-right: 0.5rem;
+            font-size: 1.1rem;
+            vertical-align: -0.125em;
+        }
+        
+        /* AI Summary Content Styling */
+        .ai-summary-content {
+            font-family: 'Lora', serif;
+            line-height: 1.7;
+            color: var(--text-primary);
+            max-width: 100%;
+            overflow-wrap: break-word;
+        }
+        
+        .ai-summary-content h3 {
+            color: var(--primary-dark);
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--primary-light);
+        }
+        
+        .ai-summary-content h3:first-child {
+            margin-top: 0;
+        }
+        
+        .ai-summary-content h4 {
+            color: var(--secondary-color);
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .ai-summary-content p {
+            margin-bottom: 1rem;
+            text-align: justify;
+            line-height: 1.7;
+        }
+        
+        .ai-summary-content ul, 
+        .ai-summary-content ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.25rem;
+            margin-top: 0.75rem;
+        }
+        
+        .ai-summary-content li {
+            margin-bottom: 0.5rem;
+            line-height: 1.5;
+            position: relative;
+        }
+        
+        .ai-summary-content ul li::marker {
+            color: var(--primary-color);
+        }
+        
+        .ai-summary-content ol li::marker {
+            color: var(--secondary-color);
+            font-weight: 600;
+        }
+        
+        .insight-card {
+            background-color: var(--primary-light);
+            border-left: 4px solid var(--primary-color);
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            line-height: 1.7;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            word-break: normal;
+            hyphens: auto;
+        }
+        
+        /* Ensure the insight card gracefully handles large content */
+        #ai-summary {
+            max-height: none;
+            overflow: visible;
+        }
     </style>
 </head>
 <body>

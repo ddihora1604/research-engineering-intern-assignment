@@ -102,13 +102,51 @@ async function updateSectionDescription(sectionId, descriptionElementSelector, c
         const sectionTitle = sectionTitles[sectionId] || sectionId.replace(/_/g, ' ');
         
         // Show loading state with specific section title
-        descriptionElement.innerHTML = `<i class="bi bi-info-circle"></i> <span class="spinner-border spinner-border-sm" role="status"></span> Loading ${sectionTitle}...`;
+        descriptionElement.innerHTML = `
+            <i class="bi bi-info-circle"></i>
+            <div class="description-content">
+                <div class="d-flex align-items-center">
+                    <span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>
+                    <h4 class="section-heading mb-0">Loading ${sectionTitle}...</h4>
+                </div>
+            </div>
+        `;
         
         // Get dynamic description
         const description = await getDynamicDescription(sectionId, activeQuery, context);
         
-        // Update the description element
-        descriptionElement.innerHTML = `<i class="bi bi-info-circle"></i> ${description}`;
+        // Update the description element - the description already contains HTML formatting
+        descriptionElement.innerHTML = description;
+        
+        // Add the info icon if it's not already included
+        if (!descriptionElement.querySelector('.bi-info-circle')) {
+            descriptionElement.insertAdjacentHTML('afterbegin', '<i class="bi bi-info-circle me-2"></i>');
+        }
+        
+        // Apply some additional styling to ensure good presentation
+        const descriptionContent = descriptionElement.querySelector('.description-content');
+        if (descriptionContent) {
+            // Add styles for better readability
+            descriptionContent.querySelectorAll('h4').forEach(heading => {
+                heading.classList.add('section-heading', 'mb-3', 'text-primary');
+            });
+            
+            descriptionContent.querySelectorAll('h5').forEach(subheading => {
+                subheading.classList.add('subsection-heading', 'mb-2', 'mt-3', 'text-secondary');
+            });
+            
+            descriptionContent.querySelectorAll('ul, ol').forEach(list => {
+                list.classList.add('my-2');
+            });
+            
+            descriptionContent.querySelectorAll('li').forEach(item => {
+                item.classList.add('mb-1');
+            });
+            
+            descriptionContent.querySelectorAll('p').forEach(paragraph => {
+                paragraph.classList.add('mb-2');
+            });
+        }
     } catch (error) {
         console.error(`Error updating description for ${sectionId}:`, error);
         // In case of error, restore the static description that was in the HTML
@@ -129,7 +167,13 @@ async function updateSectionDescription(sectionId, descriptionElementSelector, c
         
         // Fall back to the static description for this section
         if (staticDescriptions[sectionId]) {
-            descriptionElement.innerHTML = `<i class="bi bi-info-circle"></i> ${staticDescriptions[sectionId]}`;
+            descriptionElement.innerHTML = `
+                <i class="bi bi-info-circle"></i>
+                <div class="description-content">
+                    <h4 class="section-heading mb-3 text-primary">${sectionTitle}</h4>
+                    <p class="mb-2">${staticDescriptions[sectionId]}</p>
+                </div>
+            `;
         }
     }
 }
@@ -185,7 +229,15 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
         const element = document.getElementById(item.id);
         if (element) {
             const sectionTitle = sectionTitles[item.section] || item.section.replace(/_/g, ' ');
-            element.innerHTML = `<i class="bi bi-info-circle"></i> <span class="spinner-border spinner-border-sm" role="status"></span> Loading ${sectionTitle}...`;
+            element.innerHTML = `
+                <i class="bi bi-info-circle"></i>
+                <div class="description-content">
+                    <div class="d-flex align-items-center">
+                        <span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>
+                        <h4 class="section-heading mb-0">Loading ${sectionTitle}...</h4>
+                    </div>
+                </div>
+            `;
         }
     });
     
@@ -227,7 +279,12 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
             // Update AI summary - essential for overview
             updateOverview(query).catch(error => {
                 console.error('Error updating overview:', error);
-                document.getElementById('ai-summary').innerHTML = '<p class="text-danger">Error loading overview data</p>';
+                document.getElementById('ai-summary').innerHTML = `
+                    <div class="ai-summary-content">
+                        <h3>Error Loading Data</h3>
+                        <p class="text-danger">There was a problem loading the analysis data. Please try again or modify your query.</p>
+                    </div>
+                `;
             }),
             // Update top contributors (small visualization) - essential for overview
             updateContributorsOverview(query).catch(error => {
@@ -480,10 +537,8 @@ async function updateOverview(query) {
         if (summaryResponse.ok) {
             const summaryData = await summaryResponse.json();
             
-            // Display model used and enhanced summary
-            document.getElementById('ai-summary').innerHTML = `
-                <p>${summaryData.summary}</p>
-            `;
+            // Display model used and enhanced summary - the summary already contains HTML markup
+            document.getElementById('ai-summary').innerHTML = summaryData.summary;
             
             // Update metrics with enhanced data
             const metrics = summaryData.metrics;
@@ -552,8 +607,14 @@ async function updateOverview(query) {
                     
                     description += '.';
                     
-                    // Update the DOM directly
-                    metricsDescriptionEl.innerHTML = `<i class="bi bi-info-circle"></i> ${description}`;
+                    // Update the DOM with the HTML-formatted description
+                    metricsDescriptionEl.innerHTML = `
+                        <i class="bi bi-info-circle"></i>
+                        <div class="description-content">
+                            <h4 class="section-heading mb-3 text-primary">Key Metrics</h4>
+                            <p class="mb-2">${description}</p>
+                        </div>
+                    `;
                 } catch (err) {
                     console.error('Failed to update metrics description:', err);
                     // Keep the existing message if there's an error
@@ -4002,7 +4063,12 @@ async function handleAnalyzeClick() {
             // Update AI summary - essential for overview
             updateOverview(query).catch(error => {
                 console.error('Error updating overview:', error);
-                document.getElementById('ai-summary').innerHTML = '<p class="text-danger">Error loading overview data</p>';
+                document.getElementById('ai-summary').innerHTML = `
+                    <div class="ai-summary-content">
+                        <h3>Error Loading Data</h3>
+                        <p class="text-danger">There was a problem loading the analysis data. Please try again or modify your query.</p>
+                    </div>
+                `;
             }),
             // Update top contributors (small visualization) - essential for overview
             updateContributorsOverview(query).catch(error => {

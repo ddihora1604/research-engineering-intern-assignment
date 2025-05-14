@@ -1050,18 +1050,31 @@ def get_ai_summary():
             groq_api_url = "https://api.groq.com/openai/v1/chat/completions"
             
             prompt = f"""
-            Analyze the following social media data and provide deep insights:
+            Analyze the following social media data and provide deep insights in a well-structured format:
             
             {summary_context}
             
-            Please provide:
-            1. A comprehensive summary of the conversation around '{query}'
-            2. Key patterns or trends identified
-            3. Analysis of user behavior and engagement
-            4. Significant themes or narratives
-            5. Potential anomalies or points of interest
+            FORMAT REQUIREMENTS:
+            1. Structure your response using clear HTML formatting:
+               - Use <h3> tags for main section headings (3-4 sections)
+               - Use <h4> tags for subsection headings where needed
+               - Use <p> tags for paragraphs
+               - Use <ul> and <li> tags for bullet point lists
+               - Use <ol> and <li> tags for numbered lists
             
-            Format your response as a cohesive analysis without numbered points.
+            2. Include these specific sections:
+               - "Key Findings" - Overall insights from the data (paragraph format)
+               - "Conversation Patterns" - Trends and patterns in discussions (use bullet points)
+               - "Audience Analysis" - Demographics and engagement patterns (paragraph format)
+               - "Content Themes" - Major themes and narratives (use bullet points)
+               
+            3. Make sure each section has a clear heading and is visually distinct.
+            
+            4. Provide complete thoughts and don't truncate sentences.
+            
+            5. All content must be directly derived from the provided data - do not invent details.
+            
+            Return ONLY the HTML-formatted analysis without any additional explanations.
             """
             
             headers = {
@@ -1072,11 +1085,11 @@ def get_ai_summary():
             payload = {
                 "model": "llama3-8b-8192",  # Using LLaMA 3 model via Groq
                 "messages": [
-                    {"role": "system", "content": "You are an expert data analyst specializing in social media trends analysis."},
+                    {"role": "system", "content": "You are an expert data analyst specializing in social media trends analysis. You provide well-structured, visually organized reports with appropriate headings and formatting."},
                     {"role": "user", "content": prompt}
                 ],
                 "temperature": 0.7,
-                "max_tokens": 500
+                "max_tokens": 750  # Increased to ensure complete responses
             }
             
             response = requests.post(groq_api_url, headers=headers, json=payload)
@@ -1084,26 +1097,67 @@ def get_ai_summary():
             if response.status_code == 200:
                 result = response.json()
                 summary = result["choices"][0]["message"]["content"]
+                
+                # Check if the summary has proper HTML structure, if not add it
+                if not summary.strip().startswith("<h3") and not summary.strip().startswith("<div"):
+                    # Wrap in proper HTML structure
+                    formatted_summary = "<div class='ai-summary-content'>"
+                    
+                    # Add default main heading if none exists
+                    if "<h3" not in summary:
+                        formatted_summary += f"<h3>Analysis of '{query}' Discussions</h3>"
+                    
+                    # Add the content, ensuring paragraphs are wrapped
+                    if "<p>" not in summary:
+                        # Split by double newlines and wrap in paragraph tags
+                        paragraphs = summary.split("\n\n")
+                        for p in paragraphs:
+                            if p.strip():
+                                formatted_summary += f"<p>{p.strip()}</p>"
+                    else:
+                        formatted_summary += summary
+                    
+                    formatted_summary += "</div>"
+                    summary = formatted_summary
+                else:
+                    # If it already has HTML structure, just wrap it in a container div if needed
+                    if not summary.strip().startswith("<div"):
+                        summary = f"<div class='ai-summary-content'>{summary}</div>"
+                
                 print("Successfully generated analysis using Groq API")
             else:
                 # Fallback to T5 if Groq API call fails
                 print(f"Groq API call failed with status code {response.status_code}. Using T5 fallback.")
-                input_text = f"Analyze and summarize the following social media trends in detail: {summary_context}"
-                inputs = t5_tokenizer(input_text, return_tensors="pt", max_length=512, truncation=True)
-                outputs = t5_model.generate(**inputs, max_length=250, min_length=100)
-                summary = t5_tokenizer.decode(outputs[0], skip_special_tokens=True)
+                summary = generate_structured_t5_summary(summary_context, t5_tokenizer, t5_model, query)
         else:
             # Fallback to T5 if Groq API is not available
-            input_text = f"Analyze and summarize the following social media trends in detail: {summary_context}"
-            inputs = t5_tokenizer(input_text, return_tensors="pt", max_length=512, truncation=True)
-            outputs = t5_model.generate(**inputs, max_length=250, min_length=100)
-            summary = t5_tokenizer.decode(outputs[0], skip_special_tokens=True)
+            summary = generate_structured_t5_summary(summary_context, t5_tokenizer, t5_model, query)
     except Exception as e:
         # Fallback summary if model fails
-        summary = f"Found {len(filtered_data)} posts about '{query}' from {min_date} to {max_date}. "
-        summary += f"Most active in: {', '.join(list(top_subreddits.keys())[:3])}."
+        summary = f"""
+        <div class='ai-summary-content'>
+            <h3>Basic Summary of '{query}' Discussions</h3>
+            <p>Found {len(filtered_data)} posts about '{query}' from {min_date} to {max_date}. 
+            Most active in: {', '.join(list(top_subreddits.keys())[:3])}.</p>
+            
+            <h3>Key Keywords</h3>
+            <ul>
+        """
         if 'top_keywords' in locals():
-            summary += f" Key topics included: {', '.join(top_keywords)}."
+            for keyword in top_keywords:
+                summary += f"<li>{keyword}</li>"
+        
+        summary += """
+            </ul>
+            
+            <h3>Engagement Statistics</h3>
+            <p>
+        """
+        
+        if 'avg_comments' in locals():
+            summary += f"Average engagement: {avg_comments:.1f} comments per post."
+            
+        summary += "</p></div>"
     
     # Enhanced metrics for better insights
     metrics = {
@@ -1134,6 +1188,48 @@ def get_ai_summary():
         'metrics': metrics,
         'model_used': 'Groq API' if has_groq else 'Flan-T5-small'
     })
+
+# Helper function to generate structured summaries with T5
+def generate_structured_t5_summary(summary_context, tokenizer, model, query):
+    """Generate a structured summary using the T5 model"""
+    
+    input_text = f"Analyze and summarize the following social media trends in detail: {summary_context}"
+    inputs = tokenizer(input_text, return_tensors="pt", max_length=512, truncation=True)
+    outputs = model.generate(**inputs, max_length=300, min_length=150)
+    t5_summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    
+    # Structure the T5 output with HTML formatting
+    formatted_summary = f"""
+    <div class='ai-summary-content'>
+        <h3>Analysis of '{query}' Discussions</h3>
+        <p>{t5_summary}</p>
+        
+        <h3>Key Insights</h3>
+        <ul>
+    """
+    
+    # Extract potential key points from the summary
+    sentences = t5_summary.split('. ')
+    key_points = []
+    for sentence in sentences:
+        if any(keyword in sentence.lower() for keyword in ['significant', 'important', 'notable', 'key', 'trend', 'pattern']):
+            key_points.append(sentence)
+    
+    # Limit to 3-5 key points
+    key_points = key_points[:min(5, len(key_points))]
+    if not key_points:
+        key_points = sentences[:3]  # Take first 3 sentences if no key points found
+    
+    for point in key_points:
+        if point.strip():
+            formatted_summary += f"<li>{point.strip()}.</li>"
+    
+    formatted_summary += """
+        </ul>
+    </div>
+    """
+    
+    return formatted_summary
 
 @app.route('/api/common_words', methods=['GET'])
 def get_common_words():
@@ -1210,17 +1306,107 @@ def get_dynamic_description():
     data_context = request.args.get('data_context', '{}')
     detail_level = request.args.get('detail_level', 'detailed')
     
-    # Default response in case generation fails
+    # Default response in case generation fails - now with proper HTML structure
     default_description = {
-        "timeseries": "This visualization tracks post volume over time, revealing when discussions peaked, declined, or remained steady.",
-        "network": "This network graph maps connections between users based on their interactions. Nodes represent users and edges show interactions between them.",
-        "topics": "This analysis identifies distinct topics within the content using Latent Dirichlet Allocation (LDA).",
-        "coordinated": "This analysis detects potentially coordinated posting behavior by identifying similar content posted within a short time window.",
-        "word_cloud": "The word cloud visualizes the most frequently occurring terms in the analyzed posts.",
-        "contributors": "This chart identifies the most active users who have posted content matching your search query.",
-        "overview": "This section provides a high-level summary of the data analysis results.",
-        "ai_insights": "This section uses machine learning to generate human-readable insights from the data.",
-        "data_story": "This synthesizes analyses into a cohesive narrative, highlighting key trends and patterns."
+        "timeseries": """
+            <div class='description-content'>
+                <h4 class='section-heading'>Temporal Analysis</h4>
+                <p>This visualization tracks post volume over time, revealing when discussions peaked, declined, or remained steady.</p>
+                <ul>
+                    <li>Identify conversation peaks and trends over time</li>
+                    <li>Discover cyclical patterns in discussions</li>
+                    <li>Correlate spikes with external events</li>
+                </ul>
+            </div>
+        """,
+        "network": """
+            <div class='description-content'>
+                <h4 class='section-heading'>User Interaction Network</h4>
+                <p>This network graph maps connections between users based on their interactions. Nodes represent users and edges show interactions between them.</p>
+                <ul>
+                    <li>Identify central influencers and community structures</li>
+                    <li>Visualize information flow patterns</li>
+                    <li>Discover potential echo chambers or bridging users</li>
+                </ul>
+            </div>
+        """,
+        "topics": """
+            <div class='description-content'>
+                <h4 class='section-heading'>Topic Analysis</h4>
+                <p>This analysis identifies distinct topics within the content using Latent Dirichlet Allocation (LDA).</p>
+                <ul>
+                    <li>Discover main themes and subtopics in the conversation</li>
+                    <li>Analyze keyword distributions within topics</li>
+                    <li>Track how topics evolve over time</li>
+                </ul>
+            </div>
+        """,
+        "coordinated": """
+            <div class='description-content'>
+                <h4 class='section-heading'>Coordinated Behavior Analysis</h4>
+                <p>This analysis detects potentially coordinated posting behavior by identifying similar content posted within a short time window.</p>
+                <ul>
+                    <li>Identify patterns of synchronized content posting</li>
+                    <li>Detect potential influence campaigns</li>
+                    <li>Distinguish organic versus organized behavior</li>
+                </ul>
+            </div>
+        """,
+        "word_cloud": """
+            <div class='description-content'>
+                <h4 class='section-heading'>Term Frequency Visualization</h4>
+                <p>The word cloud visualizes the most frequently occurring terms in the analyzed posts.</p>
+                <ul>
+                    <li>Quickly identify dominant terminology</li>
+                    <li>Understand key concepts and vocabulary</li>
+                    <li>Discover framing and narrative elements</li>
+                </ul>
+            </div>
+        """,
+        "contributors": """
+            <div class='description-content'>
+                <h4 class='section-heading'>Key Participant Analysis</h4>
+                <p>This chart identifies the most active users who have posted content matching your search query.</p>
+                <ul>
+                    <li>Recognize dominant voices in the conversation</li>
+                    <li>Assess the distribution of participation</li>
+                    <li>Identify potential opinion leaders</li>
+                </ul>
+            </div>
+        """,
+        "overview": """
+            <div class='description-content'>
+                <h4 class='section-heading'>Comprehensive Overview</h4>
+                <p>This section provides a high-level summary of the data analysis results.</p>
+                <ul>
+                    <li>Get quick insights into key metrics and trends</li>
+                    <li>View aggregated statistics across all dimensions</li>
+                    <li>Identify areas for deeper analysis</li>
+                </ul>
+            </div>
+        """,
+        "ai_insights": """
+            <div class='description-content'>
+                <h4 class='section-heading'>AI-Generated Insights</h4>
+                <p>This section uses machine learning to generate human-readable insights from the data.</p>
+                <ul>
+                    <li>Receive automated analysis of complex patterns</li>
+                    <li>Understand key trends without manual exploration</li>
+                    <li>Discover hidden relationships in the data</li>
+                </ul>
+            </div>
+        """,
+        "data_story": """
+            <div class='description-content'>
+                <h4 class='section-heading'>Narrative Analysis</h4>
+                <p>This synthesizes analyses into a cohesive narrative, highlighting key trends and patterns.</p>
+                <ul>
+                    <li>Follow the evolution of discussions over time</li>
+                    <li>Connect related findings across different metrics</li>
+                    <li>Understand the broader context of social media activity</li>
+                </ul>
+            </div>
+        """
     }
     
     try:
@@ -1234,7 +1420,12 @@ def get_dynamic_description():
         
         # Only proceed with Groq if API key is available
         if not has_groq or not GROQ_API_KEY:
-            return jsonify({'description': default_description.get(section, "This section analyzes data based on your query.")})
+            return jsonify({'description': default_description.get(section, """
+                <div class='description-content'>
+                    <h4 class='section-heading'>Data Analysis</h4>
+                    <p>This section analyzes data based on your query.</p>
+                </div>
+            """)})
         
         # Enhanced section context with more analytical details
         section_context = {
@@ -1304,18 +1495,18 @@ def get_dynamic_description():
         # Adjust the verbosity based on detail level
         detail_settings = {
             "basic": {
-                "description": "Write a brief explanation (2-3 sentences)",
-                "max_tokens": 150,
+                "description": "Write a brief explanation (2-3 sections)",
+                "max_tokens": 250,
                 "sections": 1
             },
             "detailed": {
-                "description": "Write a comprehensive explanation (6-8 sentences with specific details)",
-                "max_tokens": 350,
+                "description": "Write a comprehensive explanation (4-5 sections with specific details)",
+                "max_tokens": 450,
                 "sections": 2
             },
             "expert": {
-                "description": "Write an in-depth analytical explanation (10+ sentences with technical details)",
-                "max_tokens": 500,
+                "description": "Write an in-depth analytical explanation (5+ sections with technical details)",
+                "max_tokens": 600,
                 "sections": 3
             }
         }
@@ -1372,6 +1563,18 @@ def get_dynamic_description():
         
         TECHNICAL DETAILS: This visualization uses {section_info["tech"]} to analyze {section_info["metrics"]}.
         
+        RESPONSE FORMAT REQUIREMENTS:
+        - Format your response in HTML with proper structure:
+          - Include a main heading (<h4>) for the visualization
+          - Use subheadings (<h5>) for each major section
+          - Use paragraphs (<p>) for explanatory text
+          - Use bullet lists (<ul>/<li>) or numbered lists (<ol>/<li>) as appropriate
+          - Wrap everything in a <div class='description-content'> container
+        - Include 3-4 distinct sections with meaningful headings (not generic "Key Insights")
+        - First section should be an informative introduction to what the visualization shows
+        - Include at least one section with bullet points highlighting key patterns
+        - If relevant, include a section called "Interpretation Guide" with tips for reading the visualization
+        
         Your description should:
         1. Explain what this visualization shows specifically for the query "{query}"
         2. Highlight the key metrics and what patterns they might reveal
@@ -1381,7 +1584,7 @@ def get_dynamic_description():
         
         For expert level descriptions, include technical interpretation guidance and explain analytical considerations.
         
-        Return ONLY the descriptive text without any additional formatting or meta-commentary.
+        Return ONLY the HTML content without any markdown formatting or meta-commentary.
         """
         
         # Call Groq API for the description with increased token limit
@@ -1395,7 +1598,7 @@ def get_dynamic_description():
         payload = {
             "model": "llama3-8b-8192",
             "messages": [
-                {"role": "system", "content": "You are a data visualization expert specializing in social media analytics. You explain complex data patterns in clear, insightful language that highlights meaningful insights."},
+                {"role": "system", "content": "You are a data visualization expert specializing in social media analytics. You explain complex data patterns in clear, insightful language that highlights meaningful insights. Output in HTML format with proper structure."},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.7,
@@ -1407,15 +1610,36 @@ def get_dynamic_description():
         if response.status_code == 200:
             result = response.json()
             description = result["choices"][0]["message"]["content"].strip()
+            
+            # Check if description contains HTML structure
+            if not description.strip().startswith("<div") and not description.strip().startswith("<h"):
+                # If not properly formatted as HTML, wrap it in default structure
+                description = f"""
+                <div class='description-content'>
+                    <h4 class='section-heading'>Analysis Results</h4>
+                    <p>{description}</p>
+                </div>
+                """
+            
             return jsonify({'description': description})
         else:
             # Fallback to default descriptions
-            return jsonify({'description': default_description.get(section, "This section analyzes data based on your query.")})
+            return jsonify({'description': default_description.get(section, """
+                <div class='description-content'>
+                    <h4 class='section-heading'>Data Analysis</h4>
+                    <p>This section analyzes data based on your query.</p>
+                </div>
+            """)})
             
     except Exception as e:
         print(f"Error generating dynamic description: {str(e)}")
         return jsonify({
-            'description': default_description.get(section, "This section analyzes data based on your query."),
+            'description': default_description.get(section, """
+                <div class='description-content'>
+                    <h4 class='section-heading'>Data Analysis</h4>
+                    <p>This section analyzes data based on your query.</p>
+                </div>
+            """),
             'error': str(e)
         })
 
