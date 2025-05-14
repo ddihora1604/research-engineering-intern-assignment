@@ -1252,18 +1252,20 @@ async function updateTimeSeries(query) {
     
     const timeseriesElement = document.getElementById('timeseries-chart');
     const containerWidth = timeseriesElement.clientWidth || timeseriesElement.offsetWidth || 800; // Fallback width
-    const margin = {top: 20, right: 30, bottom: 50, left: 60};
+    const margin = {top: 60, right: 80, bottom: 90, left: 70}; // Reduced right margin to maximize chart width
     const width = containerWidth - margin.left - margin.right;
-    const height = 400 - margin.top - margin.bottom;
+    const height = 550 - margin.top - margin.bottom; // Further increased height for better spacing
     
     // Clear previous chart
     d3.select('#timeseries-chart').html('');
     
-    // Create SVG
+    // Create SVG with responsive width
     const svg = d3.select('#timeseries-chart')
         .append('svg')
-        .attr('width', width + margin.left + margin.right)
+        .attr('width', '100%') // Use 100% width to fill container
         .attr('height', height + margin.top + margin.bottom)
+        .attr('viewBox', `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+        .attr('preserveAspectRatio', 'xMidYMid meet')
         .append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
     
@@ -1408,7 +1410,7 @@ async function updateTimeSeries(query) {
             .attr('opacity', 0.7);
     }
     
-    // Add data points
+    // Add data points with enhanced interaction
     svg.selectAll('.dot')
         .data(data)
         .enter().append('circle')
@@ -1417,10 +1419,46 @@ async function updateTimeSeries(query) {
         .attr('cy', d => y(d.count))
         .attr('r', 4)
         .attr('fill', '#0d6efd')
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 1)
+        .style('cursor', 'pointer')
+        .on('mouseover', function(event, d) {
+            d3.select(this)
+              .transition()
+              .duration(100)
+              .attr('r', 6);
+              
+            // Add tooltip
+            const tooltipX = event.pageX;
+            const tooltipY = event.pageY - 40;
+            
+            d3.select('body')
+              .append('div')
+              .attr('class', 'timeseries-tooltip')
+              .style('position', 'absolute')
+              .style('left', `${tooltipX}px`)
+              .style('top', `${tooltipY}px`)
+              .style('background', 'rgba(0,0,0,0.8)')
+              .style('color', 'white')
+              .style('padding', '5px 10px')
+              .style('border-radius', '5px')
+              .style('font-size', '12px')
+              .style('pointer-events', 'none')
+              .style('z-index', 1000)
+              .html(`Date: ${d.date.toLocaleDateString()}<br>Posts: ${d.count}`);
+        })
+        .on('mouseout', function() {
+            d3.select(this)
+              .transition()
+              .duration(100)
+              .attr('r', 4);
+              
+            d3.selectAll('.timeseries-tooltip').remove();
+        })
         .append('title')
         .text(d => `Date: ${d.date.toLocaleDateString()}\nPosts: ${d.count}`);
     
-    // Highlight peak points
+    // Highlight peak points with enhanced styling
     svg.selectAll('.peak')
         .data(topPeaks)
         .enter().append('circle')
@@ -1431,119 +1469,181 @@ async function updateTimeSeries(query) {
         .attr('fill', '#dc3545')
         .attr('stroke', '#fff')
         .attr('stroke-width', 2)
+        .style('cursor', 'pointer')
+        .on('mouseover', function(event, d) {
+            d3.select(this)
+              .transition()
+              .duration(100)
+              .attr('r', 10);
+              
+            // Add tooltip
+            const tooltipX = event.pageX;
+            const tooltipY = event.pageY - 40;
+            
+            d3.select('body')
+              .append('div')
+              .attr('class', 'timeseries-tooltip peak-tooltip')
+              .style('position', 'absolute')
+              .style('left', `${tooltipX}px`)
+              .style('top', `${tooltipY}px`)
+              .style('background', 'rgba(220,53,69,0.9)')
+              .style('color', 'white')
+              .style('padding', '5px 10px')
+              .style('border-radius', '5px')
+              .style('font-size', '12px')
+              .style('pointer-events', 'none')
+              .style('z-index', 1000)
+              .html(`<strong>Peak!</strong><br>Date: ${d.date.toLocaleDateString()}<br>Posts: ${d.count}`);
+        })
+        .on('mouseout', function() {
+            d3.select(this)
+              .transition()
+              .duration(100)
+              .attr('r', 8);
+              
+            d3.selectAll('.timeseries-tooltip').remove();
+        })
         .append('title')
         .text(d => `Peak: ${d.date.toLocaleDateString()}\nPosts: ${d.count}`);
     
-    // Add peak annotations
+    // Add peak annotations with improved visibility
     topPeaks.forEach((peak, i) => {
         // Only add text annotations for the top peak to avoid clutter
         if (i === 0) {
-            svg.append('text')
+            // Create text with white outline for better readability
+            const peakLabel = svg.append('text')
                 .attr('x', x(peak.date))
-                .attr('y', y(peak.count) - 15)
+                .attr('y', y(peak.count) - 20)
                 .attr('text-anchor', 'middle')
                 .style('font-size', '12px')
                 .style('font-weight', 'bold')
+                .style('paint-order', 'stroke')
+                .style('stroke', 'white')
+                .style('stroke-width', '3px')
+                .style('fill', '#dc3545')
                 .text(`Peak: ${peak.count} posts`);
         }
     });
     
-    // Add X axis
+    // Add X axis with improved formatting
     svg.append('g')
         .attr('transform', `translate(0,${height})`)
-        .call(d3.axisBottom(x).ticks(Math.min(data.length, 10)))
+        .call(d3.axisBottom(x)
+            .ticks(Math.min(data.length, width > 600 ? 10 : 5))
+            .tickFormat(d3.timeFormat('%b %d')))
         .selectAll('text')
         .style('text-anchor', 'end')
         .attr('dx', '-.8em')
         .attr('dy', '.15em')
-        .attr('transform', 'rotate(-45)');
+        .attr('transform', 'rotate(-45)')
+        .style('font-size', '11px');
     
-    // Add Y axis
+    // Add Y axis with improved tick formatting
     svg.append('g')
-        .call(d3.axisLeft(y));
+        .call(d3.axisLeft(y)
+            .ticks(8)
+            .tickFormat(d => {
+                if (d >= 1000) return d3.format(',.1k')(d);
+                return d;
+            }))
+        .selectAll('text')
+        .style('font-size', '11px');
     
     // Add title
     svg.append('text')
         .attr('x', width / 2)
-        .attr('y', -margin.top / 2)
+        .attr('y', -margin.top / 2 + 5)
         .attr('text-anchor', 'middle')
         .style('font-size', '16px')
         .style('font-weight', 'bold')
         .text(`Post Frequency for "${query}"`);
     
-    // Add trend indicator
+    // Add trend indicator below title with sufficient spacing
     const trendColor = trendDirection === 'increasing' ? '#20c997' : '#dc3545';
     svg.append('text')
-        .attr('x', width - 10)
-        .attr('y', 20)
-        .attr('text-anchor', 'end')
-        .style('font-size', '12px')
+        .attr('x', width / 2)
+        .attr('y', -margin.top / 2 + 30) // Positioned well below title
+        .attr('text-anchor', 'middle')
+        .style('font-size', '13px')
+        .style('font-weight', 'bold')
         .style('fill', trendColor)
         .text(`Trend: ${trendDirection} (${trendPercent}%)`);
     
-    // Add legend
+    // Add legend with positioning for full-width chart
     const legend = svg.append('g')
-        .attr('transform', `translate(${width - 180}, ${height + 30})`);
+        .attr('class', 'legend')
+        .attr('transform', `translate(${width - 10}, 40)`);
     
     // Data points
     legend.append('circle')
-        .attr('cx', 10)
+        .attr('cx', 0)
         .attr('cy', 0)
         .attr('r', 4)
-        .attr('fill', '#0d6efd');
+        .attr('fill', '#0d6efd')
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 1);
     
     legend.append('text')
-        .attr('x', 20)
+        .attr('x', 10)
         .attr('y', 4)
         .style('font-size', '12px')
-        .text('Daily posts');
+        .text('Daily posts')
+        .attr('alignment-baseline', 'middle');
     
     // Moving average
     legend.append('line')
-        .attr('x1', 0)
-        .attr('y1', 20)
-        .attr('x2', 20)
-        .attr('y2', 20)
+        .attr('x1', -10)
+        .attr('y1', 25)
+        .attr('x2', 5)
+        .attr('y2', 25)
         .attr('stroke', '#dc3545')
         .attr('stroke-width', 2)
         .attr('stroke-dasharray', '5,5');
     
     legend.append('text')
-        .attr('x', 25)
-        .attr('y', 24)
+        .attr('x', 10)
+        .attr('y', 29)
         .style('font-size', '12px')
-        .text('7-day average');
+        .text('7-day average')
+        .attr('alignment-baseline', 'middle');
     
     // Trend line
     legend.append('line')
-        .attr('x1', 0)
-        .attr('y1', 40)
-        .attr('x2', 20)
-        .attr('y2', 40)
+        .attr('x1', -10)
+        .attr('y1', 50)
+        .attr('x2', 5)
+        .attr('y2', 50)
         .attr('stroke', '#20c997')
         .attr('stroke-width', 2)
         .attr('stroke-dasharray', '10,5');
     
     legend.append('text')
-        .attr('x', 25)
-        .attr('y', 44)
+        .attr('x', 10)
+        .attr('y', 54)
         .style('font-size', '12px')
-        .text('Trend line');
+        .text('Trend line')
+        .attr('alignment-baseline', 'middle');
     
     // Add Y axis label
     svg.append('text')
         .attr('transform', 'rotate(-90)')
-        .attr('y', 0 - margin.left)
+        .attr('y', 0 - margin.left + 15)
         .attr('x', 0 - (height / 2))
         .attr('dy', '1em')
         .style('text-anchor', 'middle')
+        .style('font-size', '14px')
+        .style('font-weight', '500')
+        .attr('fill', 'var(--text-primary)')
         .text('Number of Posts');
     
     // Add X axis label
     svg.append('text')
         .attr('x', width / 2)
-        .attr('y', height + 40)
+        .attr('y', height + margin.bottom - 15)
         .style('text-anchor', 'middle')
+        .style('font-size', '14px')
+        .style('font-weight', '500')
+        .attr('fill', 'var(--text-primary)')
         .text('Date');
     
     // Force a redraw if needed (helps with rendering issues)
@@ -1728,16 +1828,16 @@ async function updateTopics(query) {
                     <h5 class="mb-0">Topic Evolution Over Time</h5>
                 </div>
                 <div class="card-body">
-                    <div id="topic-evolution-chart" style="height: 300px;"></div>
+                    <div id="topic-evolution-chart-mini" style="height: 350px;"></div>
                 </div>
             `;
             topicsContainer.appendChild(evolutionContainer);
             
             // Process data for the chart
             setTimeout(() => {
-                const evolutionChart = document.getElementById('topic-evolution-chart');
+                const evolutionChart = document.getElementById('topic-evolution-chart-mini');
                 const chartWidth = evolutionChart.clientWidth;
-                const chartHeight = 300;
+                const chartHeight = 350;
                 
                 // Process evolution data for visualization
                 const timeData = {};
@@ -1774,7 +1874,7 @@ async function updateTopics(query) {
                 });
                 
                 // Create the chart
-                const svg = d3.select('#topic-evolution-chart')
+                const svg = d3.select('#topic-evolution-chart-mini')
                     .append('svg')
                     .attr('width', chartWidth)
                     .attr('height', chartHeight);
@@ -2097,7 +2197,6 @@ async function updateCoordinatedBehavior() {
                 <div class="alert alert-info">
                     <i class="bi bi-info-circle-fill"></i> 
                     Analysis performed with ${metrics.time_window_seconds}s time window and ${metrics.similarity_threshold} similarity threshold.
-                    Network density: ${metrics.density ? (metrics.density * 100).toFixed(2) + '%' : 'N/A'}.
                 </div>
             `;
         }
@@ -2921,15 +3020,17 @@ async function updateTopicEvolution(query) {
         
         const chartContainer = document.getElementById('topic-evolution-chart');
         const containerWidth = chartContainer.clientWidth || 800;
-        const margin = {top: 30, right: 150, bottom: 50, left: 60}; // Extra right margin for labels
+        const margin = {top: 60, right: 120, bottom: 90, left: 80}; // Increased right margin to ensure label visibility
         const width = containerWidth - margin.left - margin.right;
-        const height = 400 - margin.top - margin.bottom;
+        const height = 550 - margin.top - margin.bottom; // Further increased height for better spacing
         
-        // Create SVG container
+        // Create responsive SVG container
         const svg = d3.select('#topic-evolution-chart')
             .append('svg')
-            .attr('width', width + margin.left + margin.right)
+            .attr('width', '100%') // Use 100% width to fill container
             .attr('height', height + margin.top + margin.bottom)
+            .attr('viewBox', `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+            .attr('preserveAspectRatio', 'xMidYMid meet')
             .append('g')
             .attr('transform', `translate(${margin.left},${margin.top})`);
         
@@ -3036,10 +3137,22 @@ async function updateTopicEvolution(query) {
         });
         
         // Sort topics by trend (rising first, then falling, then stable)
+        // and limit to maximum 5 topics to prevent label overcrowding
         chartData.sort((a, b) => {
             const trendOrder = { 'rising': 0, 'stable': 1, 'falling': 2, 'unknown': 3 };
             return trendOrder[a.trend] - trendOrder[b.trend];
         });
+        
+        // Limit to max 5 most significant topics to prevent overcrowding
+        if (chartData.length > 5) {
+            // Keep only the most significant topics (those with highest average values)
+            chartData = chartData.map(topic => {
+                const avgValue = d3.mean(topic.values, d => d.value);
+                return {...topic, avgValue};
+            })
+            .sort((a, b) => b.avgValue - a.avgValue)
+            .slice(0, 5);
+        }
         
         // Setup scales
         const x = d3.scaleTime()
@@ -3058,24 +3171,37 @@ async function updateTopicEvolution(query) {
             .domain(topicIds)
             .range(d3.schemeCategory10);
         
-        // Add axes
+        // Add axes with improved formatting
         svg.append('g')
             .attr('transform', `translate(0,${height})`)
-            .call(d3.axisBottom(x).ticks(5).tickFormat(d3.timeFormat('%b %d')))
+            .attr('class', 'x-axis')
+            .call(d3.axisBottom(x)
+                .ticks(Math.min(sortedDates.length, width > 600 ? 10 : 5))
+                .tickFormat(d3.timeFormat('%b %d')))
             .selectAll('text')
             .style('text-anchor', 'end')
             .attr('dx', '-.8em')
             .attr('dy', '.15em')
-            .attr('transform', 'rotate(-45)');
+            .attr('transform', 'rotate(-45)')
+            .style('font-size', '11px');
         
         svg.append('g')
-            .call(d3.axisLeft(y));
+            .attr('class', 'y-axis')
+            .call(d3.axisLeft(y)
+                .ticks(8)
+                .tickFormat(d => {
+                    if (d >= 1000) return d3.format(',.1k')(d);
+                    return d;
+                }))
+            .selectAll('text')
+            .style('font-size', '11px');
         
-        // Add title
+        // Add title with improved positioning to prevent overlaps
         svg.append('text')
             .attr('x', width / 2)
-            .attr('y', -10)
+            .attr('y', -margin.top / 2 + 10)
             .attr('text-anchor', 'middle')
+            .attr('fill', 'var(--text-primary)')
             .style('font-size', '16px')
             .style('font-weight', 'bold')
             .text(`Topic Evolution for "${query}"`);
@@ -3123,26 +3249,26 @@ async function updateTopicEvolution(query) {
                 .attr('stroke-width', 1);
         });
         
-        // Add topic labels at the end of each line
+        // Add topic labels at the end of each line with significantly improved spacing
         chartData.forEach((topic, i) => {
             const lastPoint = topic.values[topic.values.length - 1];
             
-            // Stagger the labels vertically to avoid overlap
-            const yOffset = i * 18 - (chartData.length * 9) + 10;
+            // Stagger the labels vertically with much more space to avoid overlap
+            const yOffset = i * 35 - (chartData.length * 9) + 10;
             
             svg.append('line')
                 .attr('x1', x(lastPoint.date))
                 .attr('y1', y(lastPoint.smoothedValue))
-                .attr('x2', width + 15)
+                .attr('x2', width + 5)
                 .attr('y2', y(lastPoint.smoothedValue) + yOffset)
                 .attr('stroke', color(topic.id))
                 .attr('stroke-width', 1)
                 .attr('stroke-dasharray', '3,3')
                 .attr('opacity', 0.7);
             
-            // Create a group for the label
+            // Create a group for the label, positioned closer to the chart edge
             const labelGroup = svg.append('g')
-                .attr('transform', `translate(${width + 20}, ${y(lastPoint.smoothedValue) + yOffset})`);
+                .attr('transform', `translate(${width + 10}, ${y(lastPoint.smoothedValue) + yOffset})`);
             
             // Add trend indicator symbol
             const trendSymbol = topic.trend === 'rising' ? '↑' : (topic.trend === 'falling' ? '↓' : '→');
@@ -3156,45 +3282,59 @@ async function updateTopicEvolution(query) {
                 .style('fill', trendColor)
                 .text(trendSymbol);
             
-            // Add topic label text
+            // Add topic label text with improved handling for readability
             const topWords = topic.name.split(':')[1] || '';
-            labelGroup.append('text')
-                .attr('x', 15)
+            // Drastically limit topic words to ensure trend percentages remain visible
+            const shortenedWords = topWords.length > 6 ? topWords.substring(0, 6) + '...' : topWords;
+            
+            // Add text with background for better readability
+            const textLabel = labelGroup.append('text')
+                .attr('x', 12)
                 .attr('y', 0)
                 .style('font-size', '11px')
                 .style('font-weight', 'normal')
-                .text(topWords);
+                .style('dominant-baseline', 'middle')
+                .text(shortenedWords);
             
-            // Add trend percentage
+            // Add trend percentage with improved positioning - separate line from topic name
             if (topic.trend !== 'unknown') {
                 const trendText = topic.trend === 'rising' ? `+${topic.trendChange}%` : 
                                  (topic.trend === 'falling' ? `${topic.trendChange}%` : '');
                 
                 if (trendText) {
+                    // Position trend percentage directly after topic name
                     labelGroup.append('text')
-                        .attr('x', 105)
+                        .attr('x', 60)
                         .attr('y', 0)
                         .style('font-size', '10px')
+                        .style('font-weight', 'bold')
+                        .style('dominant-baseline', 'middle')
                         .style('fill', trendColor)
                         .text(trendText);
                 }
             }
         });
         
-        // Add X axis label
+        // Add X axis label with improved styling
         svg.append('text')
             .attr('x', width / 2)
-            .attr('y', height + 40)
+            .attr('y', height + margin.bottom - 15)
             .style('text-anchor', 'middle')
+            .style('font-size', '14px')
+            .style('font-weight', '500')
+            .attr('fill', 'var(--text-primary)')
             .text('Date');
         
-        // Add Y axis label
+        // Add Y axis label with improved styling
         svg.append('text')
             .attr('transform', 'rotate(-90)')
-            .attr('y', 0 - margin.left)
+            .attr('y', 0 - margin.left + 15)
             .attr('x', 0 - (height / 2))
             .attr('dy', '1em')
             .style('text-anchor', 'middle')
+            .style('font-size', '14px')
+            .style('font-weight', '500')
+            .attr('fill', 'var(--text-primary)')
             .text('Topic Prevalence');
         
         // Add interactive hover effects
