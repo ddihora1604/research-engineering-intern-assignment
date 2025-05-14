@@ -103,7 +103,6 @@ async function updateSectionDescription(sectionId, descriptionElementSelector, c
         
         // Show loading state with specific section title
         descriptionElement.innerHTML = `
-            <i class="bi bi-info-circle"></i>
             <div class="description-content">
                 <div class="d-flex align-items-center">
                     <span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>
@@ -117,11 +116,6 @@ async function updateSectionDescription(sectionId, descriptionElementSelector, c
         
         // Update the description element - the description already contains HTML formatting
         descriptionElement.innerHTML = description;
-        
-        // Add the info icon if it's not already included
-        if (!descriptionElement.querySelector('.bi-info-circle')) {
-            descriptionElement.insertAdjacentHTML('afterbegin', '<i class="bi bi-info-circle me-2"></i>');
-        }
         
         // Apply some additional styling to ensure good presentation
         const descriptionContent = descriptionElement.querySelector('.description-content');
@@ -168,7 +162,6 @@ async function updateSectionDescription(sectionId, descriptionElementSelector, c
         // Fall back to the static description for this section
         if (staticDescriptions[sectionId]) {
             descriptionElement.innerHTML = `
-                <i class="bi bi-info-circle"></i>
                 <div class="description-content">
                     <h4 class="section-heading mb-3 text-primary">${sectionTitle}</h4>
                     <p class="mb-2">${staticDescriptions[sectionId]}</p>
@@ -230,7 +223,6 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
         if (element) {
             const sectionTitle = sectionTitles[item.section] || item.section.replace(/_/g, ' ');
             element.innerHTML = `
-                <i class="bi bi-info-circle"></i>
                 <div class="description-content">
                     <div class="d-flex align-items-center">
                         <span class="spinner-border spinner-border-sm text-primary me-2" role="status"></span>
@@ -609,7 +601,6 @@ async function updateOverview(query) {
                     
                     // Update the DOM with the HTML-formatted description
                     metricsDescriptionEl.innerHTML = `
-                        <i class="bi bi-info-circle"></i>
                         <div class="description-content">
                             <h4 class="section-heading mb-3 text-primary">Key Metrics</h4>
                             <p class="mb-2">${description}</p>
@@ -717,13 +708,13 @@ async function updateOverview(query) {
                     <div class="col-12">
                         <div class="stat-card">
                             <div class="stat-label">Engagement Trend</div>
-                            <div id="engagement-trend-chart" style="height: 100px;"></div>
+                            <div id="engagement-trend-chart" style="height: 200px;"></div>
                         </div>
                     </div>
                 `;
                 metricsContainer.appendChild(engagementRow);
                 
-                // Create mini chart for engagement trend
+                // Create enhanced chart for engagement trend with proper labels
                 setTimeout(() => {
                     const trendData = Object.entries(metrics.engagement_trend).map(([date, value]) => ({
                         date: new Date(date),
@@ -732,31 +723,188 @@ async function updateOverview(query) {
                     
                     if (trendData.length > 1) {
                         const trendWidth = document.getElementById('engagement-trend-chart').clientWidth;
-                        const trendHeight = 100;
+                        const trendHeight = 200;
+                        
+                        // Define margins to accommodate axis labels - increase margins for better spacing
+                        const margin = {top: 15, right: 35, bottom: 60, left: 60};
+                        const width = trendWidth - margin.left - margin.right;
+                        const height = trendHeight - margin.top - margin.bottom;
+                        
+                        // Clear previous chart if any
+                        d3.select('#engagement-trend-chart').html('');
                         
                         const svg = d3.select('#engagement-trend-chart')
                             .append('svg')
                             .attr('width', trendWidth)
-                            .attr('height', trendHeight);
+                            .attr('height', trendHeight)
+                            .append('g')
+                            .attr('transform', `translate(${margin.left},${margin.top})`);
                         
+                        // Create X and Y scales with proper domains
                         const x = d3.scaleTime()
                             .domain(d3.extent(trendData, d => d.date))
-                            .range([0, trendWidth]);
+                            .range([0, width]);
                         
                         const y = d3.scaleLinear()
-                            .domain([0, d3.max(trendData, d => d.value)])
-                            .range([trendHeight, 0]);
+                            .domain([0, d3.max(trendData, d => d.value) * 1.1]) // Add 10% padding at the top
+                            .range([height, 0]);
                         
-                        // Add the line
+                        // Determine how many ticks to show based on data span
+                        const timeSpan = trendData[trendData.length - 1].date - trendData[0].date;
+                        const daySpan = timeSpan / (1000 * 60 * 60 * 24);
+                        
+                        // Choose appropriate date format and tick count based on date range
+                        let tickCount = 4; // Default to 4 ticks
+                        let dateFormat = '%b %Y'; // Default to month-year format
+                        
+                        if (daySpan <= 14) {
+                            // For spans under 2 weeks, show day-month
+                            dateFormat = '%d %b';
+                            tickCount = Math.min(5, daySpan);
+                        } else if (daySpan <= 60) {
+                            // For spans under 60 days, show abbreviated month
+                            dateFormat = '%b %d';
+                            tickCount = Math.min(5, Math.ceil(daySpan / 7)); // About one tick per week
+                        } else if (daySpan <= 365) {
+                            // For spans under a year, show month only
+                            dateFormat = '%b';
+                            tickCount = Math.min(6, Math.ceil(daySpan / 30)); // About one tick per month
+                        } else {
+                            // For spans over a year, show month-year
+                            tickCount = Math.min(6, Math.ceil(daySpan / 90)); // About one tick per quarter
+                        }
+                        
+                        // Add X axis with properly formatted dates - fewer ticks, larger rotation
+                        svg.append('g')
+                            .attr('transform', `translate(0,${height})`)
+                            .call(d3.axisBottom(x)
+                                .ticks(tickCount)
+                                .tickFormat(d3.timeFormat(dateFormat)))
+                            .selectAll('text')
+                            .style('text-anchor', 'end')
+                            .style('font-size', '10px')
+                            .attr('dx', '-.8em')
+                            .attr('dy', '.15em')
+                            .attr('transform', 'rotate(-45)'); // Increase rotation for better spacing
+                        
+                        // Add X axis label - position it lower for better spacing
+                        svg.append('text')
+                            .attr('transform', `translate(${width/2}, ${height + margin.bottom - 10})`)
+                            .style('text-anchor', 'middle')
+                            .style('font-size', '12px')
+                            .style('fill', 'var(--text-secondary)')
+                            .text('Date');
+                        
+                        // Add Y axis with grid lines - reduce the number of ticks
+                        svg.append('g')
+                            .call(d3.axisLeft(y)
+                                .ticks(4) // Fewer ticks to avoid overlap
+                                .tickFormat(d => d.toFixed(1)))
+                            .call(g => g.selectAll('.tick line')
+                                .clone()
+                                .attr('x2', width)
+                                .attr('stroke-opacity', 0.1));
+                        
+                        // Add Y axis label
+                        svg.append('text')
+                            .attr('transform', 'rotate(-90)')
+                            .attr('y', -margin.left +5)
+                            .attr('x', -height / 2)
+                            .attr('dy', '1em')
+                            .style('text-anchor', 'middle')
+                            .style('font-size', '12px')
+                            .style('fill', 'var(--text-secondary)')
+                            .text('Avg. Comments');
+                        
+                        // Create a gradient for the line
+                        const gradient = svg.append('defs')
+                            .append('linearGradient')
+                            .attr('id', 'engagement-gradient')
+                            .attr('gradientUnits', 'userSpaceOnUse')
+                            .attr('x1', 0)
+                            .attr('y1', 0)
+                            .attr('x2', 0)
+                            .attr('y2', height);
+                        
+                        gradient.append('stop')
+                            .attr('offset', '0%')
+                            .attr('stop-color', 'var(--primary-color)')
+                            .attr('stop-opacity', 1);
+                        
+                        gradient.append('stop')
+                            .attr('offset', '100%')
+                            .attr('stop-color', 'var(--primary-light)')
+                            .attr('stop-opacity', 0.7);
+                        
+                        // Add area under the line
+                        svg.append('path')
+                            .datum(trendData)
+                            .attr('fill', 'url(#engagement-gradient)')
+                            .attr('fill-opacity', 0.3)
+                            .attr('d', d3.area()
+                                .x(d => x(d.date))
+                                .y0(height)
+                                .y1(d => y(d.value))
+                            );
+                        
+                        // Add the line with smooth curve
                         svg.append('path')
                             .datum(trendData)
                             .attr('fill', 'none')
-                            .attr('stroke', '#0d6efd')
-                            .attr('stroke-width', 2)
+                            .attr('stroke', 'var(--primary-color)')
+                            .attr('stroke-width', 2.5)
                             .attr('d', d3.line()
+                                .curve(d3.curveMonotoneX)
                                 .x(d => x(d.date))
                                 .y(d => y(d.value))
                             );
+                        
+                        // Determine data point visibility based on density
+                        // For dense datasets, only show a subset of points
+                        let visiblePoints = trendData;
+                        if (trendData.length > 20) {
+                            // Create a subset of points to display based on significance
+                            const significantPoints = [];
+                            
+                            // Always include first and last points
+                            significantPoints.push(trendData[0]);
+                            significantPoints.push(trendData[trendData.length - 1]);
+                            
+                            // Find local maxima and minima
+                            for (let i = 1; i < trendData.length - 1; i++) {
+                                const prev = trendData[i-1].value;
+                                const curr = trendData[i].value;
+                                const next = trendData[i+1].value;
+                                
+                                // Include if it's a peak or valley
+                                if ((curr > prev && curr > next) || (curr < prev && curr < next)) {
+                                    significantPoints.push(trendData[i]);
+                                }
+                                
+                                // Include some regular samples for regular periods
+                                if (i % Math.ceil(trendData.length / 15) === 0) {
+                                    significantPoints.push(trendData[i]);
+                                }
+                            }
+                            
+                            // Sort points by date again
+                            visiblePoints = significantPoints.sort((a, b) => a.date - b.date);
+                        }
+                        
+                        // Add dots for selected data points
+                        svg.selectAll('.dot')
+                            .data(visiblePoints)
+                            .enter()
+                            .append('circle')
+                            .attr('class', 'dot')
+                            .attr('cx', d => x(d.date))
+                            .attr('cy', d => y(d.value))
+                            .attr('r', 3)
+                            .attr('fill', 'var(--primary-color)')
+                            .attr('stroke', '#fff')
+                            .attr('stroke-width', 1.5)
+                            .append('title')
+                            .text(d => `${d3.timeFormat('%b %d, %Y')(d.date)}: ${d.value.toFixed(1)} comments`);
                     }
                 }, 100);
             }
@@ -776,7 +924,7 @@ async function updateContributorsOverview(query) {
     const data = await response.json();
     
     const containerWidth = document.getElementById('contributors-overview').clientWidth;
-    const margin = {top: 20, right: 20, bottom: 40, left: 60};
+    const margin = {top: 30, right: 30, bottom: 80, left: 60};
     const width = containerWidth - margin.left - margin.right;
     const height = 300 - margin.top - margin.bottom;
     
@@ -799,39 +947,142 @@ async function updateContributorsOverview(query) {
         .padding(0.2);
     
     const y = d3.scaleLinear()
-        .domain([0, d3.max(data, d => d.count)])
+        .domain([0, d3.max(data, d => d.count) * 1.1]) // Add 10% padding at the top
         .range([height, 0]);
     
-    // Add X axis
+    // Add X axis with improved formatting for author names
     svg.append('g')
         .attr('transform', `translate(0,${height})`)
         .call(d3.axisBottom(x))
         .selectAll('text')
         .attr('transform', 'translate(-10,0)rotate(-45)')
-        .style('text-anchor', 'end');
+        .style('text-anchor', 'end')
+        .style('font-size', '10px') // Smaller font for better fit
+        .each(function(d) {
+            // Truncate long author names
+            const text = d3.select(this);
+            const authorName = d;
+            if (authorName.length > 12) {
+                text.text(authorName.substring(0, 10) + '...');
+                // Add full name as tooltip
+                text.append('title').text(authorName);
+            }
+        });
     
-    // Add Y axis
+    // Add X axis label
+    svg.append('text')
+        .attr('transform', `translate(${width/2}, ${height + margin.bottom - 10})`)
+        .style('text-anchor', 'middle')
+        .style('font-size', '12px')
+        .style('fill', 'var(--text-secondary)')
+        .text('Contributors');
+    
+    // Add Y axis with grid lines
     svg.append('g')
-        .call(d3.axisLeft(y));
+        .call(d3.axisLeft(y)
+            .ticks(5)
+            .tickFormat(d => Math.round(d)))
+        .call(g => g.selectAll('.tick line')
+            .clone()
+            .attr('x2', width)
+            .attr('stroke-opacity', 0.1));
     
-    // Add bars
+    // Add Y axis label
+    svg.append('text')
+        .attr('transform', 'rotate(-90)')
+        .attr('y', -margin.left + 15)
+        .attr('x', -height / 2)
+        .attr('dy', '1em')
+        .style('text-anchor', 'middle')
+        .style('font-size', '12px')
+        .style('fill', 'var(--text-secondary)')
+        .text('Number of Posts');
+    
+    // Add bars with a gradient and animation
+    const barGradient = svg.append('defs')
+        .append('linearGradient')
+        .attr('id', 'bar-gradient')
+        .attr('gradientUnits', 'userSpaceOnUse')
+        .attr('x1', 0)
+        .attr('y1', 0)
+        .attr('x2', 0)
+        .attr('y2', height);
+    
+    barGradient.append('stop')
+        .attr('offset', '0%')
+        .attr('stop-color', 'var(--primary-color)')
+        .attr('stop-opacity', 1);
+    
+    barGradient.append('stop')
+        .attr('offset', '100%')
+        .attr('stop-color', 'var(--primary-color)')
+        .attr('stop-opacity', 0.7);
+    
+    // Add bars with animation and hover effect
     svg.selectAll('rect')
         .data(data)
         .enter()
         .append('rect')
         .attr('x', d => x(d.author))
-        .attr('y', d => y(d.count))
+        .attr('y', height) // Start from bottom for animation
         .attr('width', x.bandwidth())
-        .attr('height', d => height - y(d.count))
-        .attr('fill', '#0d6efd');
+        .attr('height', 0) // Start with height 0 for animation
+        .attr('fill', 'url(#bar-gradient)')
+        .attr('rx', 2) // Slightly rounded corners
+        // Add transition for bars
+        .transition()
+        .duration(800)
+        .delay((d, i) => i * 50)
+        .attr('y', d => y(d.count))
+        .attr('height', d => height - y(d.count));
     
-    // Add title
-    svg.append('text')
-        .attr('x', width / 2)
-        .attr('y', -margin.top / 2)
+    // Add data labels for significant values
+    svg.selectAll('.bar-label')
+        .data(data.filter(d => d.count > d3.max(data, d => d.count) * 0.1)) // Only label bars with significant values
+        .enter()
+        .append('text')
+        .attr('class', 'bar-label')
+        .attr('x', d => x(d.author) + x.bandwidth() / 2)
+        .attr('y', d => y(d.count) - 5)
         .attr('text-anchor', 'middle')
-        .style('font-size', '14px')
-        .text(`Top 10 Contributors for "${query}"`);
+        .style('font-size', '10px')
+        .style('font-weight', 'bold')
+        .style('fill', 'var(--text-primary)')
+        .text(d => d.count)
+        .style('opacity', 0) // Start invisible for animation
+        .transition()
+        .duration(800)
+        .delay((d, i) => i * 50 + 300)
+        .style('opacity', 1); // Fade in
+    
+    // Add hover interaction for bars
+    svg.selectAll('rect')
+        .on('mouseover', function(event, d) {
+            d3.select(this)
+                .transition()
+                .duration(200)
+                .attr('fill', 'var(--primary-dark)');
+            
+            // Add tooltip on hover
+            svg.append('text')
+                .attr('class', 'tooltip-text')
+                .attr('x', x(d.author) + x.bandwidth() / 2)
+                .attr('y', y(d.count) - 15)
+                .attr('text-anchor', 'middle')
+                .style('font-size', '11px')
+                .style('font-weight', 'bold')
+                .style('fill', 'var(--text-primary)')
+                .text(`${d.author}: ${d.count} posts`);
+        })
+        .on('mouseout', function() {
+            d3.select(this)
+                .transition()
+                .duration(200)
+                .attr('fill', 'url(#bar-gradient)');
+            
+            // Remove tooltip
+            svg.selectAll('.tooltip-text').remove();
+        });
 }
 
 // Word Cloud Visualization
@@ -853,53 +1104,132 @@ async function updateWordCloud(query) {
         const width = wordCloudContainer.clientWidth;
         const height = 300;
         
+        // Define vibrant color palette
+        const colorPalette = [
+            '#FF595E', '#FF924C', '#FFCA3A', '#8AC926', '#1982C4', 
+            '#6A4C93', '#F94144', '#F3722C', '#F8961E', '#F9C74F',
+            '#90BE6D', '#43AA8B', '#4D908E', '#577590', '#277DA1',
+            '#E63946', '#F1FAEE', '#A8DADC', '#457B9D', '#1D3557'
+        ];
+        
         // Scale for word size
         const fontSize = d3.scaleLinear()
             .domain([0, d3.max(words, d => d.count)])
             .range([12, 60]);
+            
+        // Create SVG with gradient background
+        const svg = d3.select('#word-cloud')
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height)
+            .style('border-radius', '12px')
+            .style('overflow', 'hidden')
+            .style('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.05)')
+            .style('transition', 'all 0.3s ease')
+            .on('mouseenter', function() {
+                d3.select(this)
+                    .style('box-shadow', '0 6px 16px rgba(0, 0, 0, 0.1)')
+                    .style('transform', 'translateY(-2px)');
+            })
+            .on('mouseleave', function() {
+                d3.select(this)
+                    .style('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.05)')
+                    .style('transform', 'translateY(0)');
+            });
         
+        // Add linear gradient definition
+        const gradient = svg.append('defs')
+            .append('linearGradient')
+            .attr('id', 'word-cloud-background')
+            .attr('x1', '0%')
+            .attr('y1', '0%')
+            .attr('x2', '100%')
+            .attr('y2', '100%');
+            
+        gradient.append('stop')
+            .attr('offset', '0%')
+            .attr('stop-color', '#f8f9fa')
+            .attr('stop-opacity', 1);
+            
+        gradient.append('stop')
+            .attr('offset', '100%')
+            .attr('stop-color', '#e9ecef')
+            .attr('stop-opacity', 1);
+        
+        // Add background rectangle with gradient
+        svg.append('rect')
+            .attr('width', width)
+            .attr('height', height)
+            .attr('fill', 'url(#word-cloud-background)');
+        
+        // Add the word cloud group
+        const cloudGroup = svg.append('g')
+            .attr('transform', `translate(${width/2},${height/2})`);
+            
         // Create layout
         const layout = d3.layout.cloud()
             .size([width, height])
             .words(words.map(d => ({
                 text: d.word, 
                 size: fontSize(d.count),
-                value: d.count
+                value: d.count,
+                // Set all words to horizontal orientation (0 degrees)
+                rotate: 0,
+                // Add random font family selection for variety
+                font: Math.random() > 0.7 ? 'Arial' : (Math.random() > 0.5 ? 'Helvetica' : 'Roboto')
             })))
             .padding(5)
-            .rotate(() => 0)
-            .font('Arial')
             .fontSize(d => d.size)
+            .font(d => d.font)
+            .rotate(d => d.rotate)
+            .spiral('archimedean')
             .on('end', draw);
         
         layout.start();
         
         function draw(words) {
-            // Color scale
-            const color = d3.scaleOrdinal(d3.schemeCategory10);
-            
-            d3.select('#word-cloud')
-                .append('svg')
-                .attr('width', width)
-                .attr('height', height)
-                .append('g')
-                .attr('transform', `translate(${width/2},${height/2})`)
-                .selectAll('text')
+            // Add words with animations and enhanced styling
+            cloudGroup.selectAll('text')
                 .data(words)
                 .enter()
                 .append('text')
                 .style('font-size', d => `${d.size}px`)
-                .style('font-family', 'Arial')
-                .style('fill', (d, i) => color(i % 10))
+                .style('font-family', d => d.font)
+                .style('font-weight', d => d.size > 30 ? 'bold' : (d.size > 20 ? 'semibold' : 'normal'))
+                .style('fill', (d, i) => colorPalette[i % colorPalette.length])
+                .style('cursor', 'pointer')
+                .style('opacity', 0) // Start with opacity 0 for fade-in animation
+                .style('text-shadow', d => d.size > 25 ? '1px 1px 2px rgba(0,0,0,0.1)' : 'none')
                 .attr('text-anchor', 'middle')
                 .attr('transform', d => `translate(${d.x},${d.y}) rotate(${d.rotate})`)
                 .text(d => d.text)
+                .on('mouseover', function() {
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .style('fill', '#0d6efd')
+                        .style('font-size', function(d) { return `${d.size * 1.1}px`; });
+                })
+                .on('mouseout', function() {
+                    d3.select(this)
+                        .transition()
+                        .duration(200)
+                        .style('fill', function(d, i) { return colorPalette[i % colorPalette.length]; })
+                        .style('font-size', function(d) { return `${d.size}px`; });
+                })
                 .append('title')
                 .text(d => {
                     // Safe handling of value property to avoid the toFixed error
                     const value = typeof d.value === 'number' ? d.value : (d.value || 0);
                     return `${d.text}: ${value}`;
                 });
+            
+            // Animate words appearing with staggered timing
+            cloudGroup.selectAll('text')
+                .transition()
+                .duration(600)
+                .delay((d, i) => i * 30)
+                .style('opacity', 1);
         }
     } catch (error) {
         console.error('Error updating word cloud:', error);
@@ -2334,14 +2664,35 @@ async function updateTopics(query) {
                     .style('font-weight', d => d.weight > 20 ? 'bold' : 'normal')
                     .style('fill', d => color(d.weight))
                     .attr('text-anchor', 'middle')
-                    .attr('transform', d => `translate(${d.x},${d.y})`)
+                    .attr('transform', d => `translate(${d.x},${d.y}) rotate(${d.rotate})`)
                     .text(d => d.text)
+                    .on('mouseover', function() {
+                        d3.select(this)
+                            .transition()
+                            .duration(200)
+                            .style('fill', '#0d6efd')
+                            .style('font-size', d => `${d.size * 1.1}px`);
+                    })
+                    .on('mouseout', function(event, d) {
+                        d3.select(this)
+                            .transition()
+                            .duration(200)
+                            .style('fill', (d, i) => colorPalette[i % colorPalette.length])
+                            .style('font-size', d => `${d.size}px`);
+                    })
                     .append('title')
                     .text(d => {
                         // Safe handling of weight property to avoid the toFixed error
                         const weight = typeof d.weight === 'number' ? d.weight.toFixed(1) : (d.weight || 0);
                         return `${d.text}: ${weight}%`;
                     });
+                
+                // Animate words appearing with staggered timing
+                cloudGroup.selectAll('text')
+                    .transition()
+                    .duration(600)
+                    .delay((d, i) => i * 30)
+                    .style('opacity', 1);
             });
         
         layout.start();
