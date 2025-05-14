@@ -839,16 +839,6 @@
                         <label for="query-input" class="form-label">Search Query</label>
                         <input type="text" class="form-control" id="query-input" placeholder="Enter your search query">
                     </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="start-date" class="form-label">Start Date</label>
-                            <input type="date" class="form-control" id="start-date">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="end-date" class="form-label">End Date</label>
-                            <input type="date" class="form-control" id="end-date">
-                        </div>
-                    </div>
                     <div class="text-center">
                         <button id="analyze-btn" class="btn btn-success">
                             <i class="bi bi-search"></i> Analyze Data
@@ -907,7 +897,7 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="chatbot-tab" data-bs-toggle="tab" data-bs-target="#chatbot-panel" type="button" role="tab" aria-controls="chatbot-panel" aria-selected="false">
                     <i class="bi bi-robot"></i>
-                    <span>Ask the Data</span>
+                    <span>Chatbot</span>
                 </button>
             </li>
         </ul>
@@ -955,7 +945,7 @@
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="chatbot-tab" data-bs-toggle="tab" data-bs-target="#chatbot-panel" type="button" role="tab" aria-controls="chatbot-panel" aria-selected="false">
                             <i class="bi bi-robot"></i>
-                            <span>Ask the Data</span>
+                            <span>Chatbot</span>
                         </button>
                     </li>
                 </ul>
@@ -1050,7 +1040,7 @@
                         <div class="chart-container">
                             <h3><i class="bi bi-people-fill"></i> Top Contributors</h3>
                             <div class="alert alert-info mb-3" id="contributors-description">
-                                <i class="bi bi-info-circle"></i> Identifies the most active users posting content matching your search criteria.
+                                <i class="bi bi-info-circle"></i> Identifies the most active users posting content, which matches your search criteria.
                             </div>
                             <div id="contributors-overview"></div>
                         </div>
@@ -1075,7 +1065,7 @@
                         <i class="bi bi-info-circle"></i> Shows how conversation themes and topics change in prominence across different time periods.
                     </div>
                     <p class="text-muted mb-4">Shows how topics evolve and change in prevalence over time.</p>
-                    <div id="topic-evolution-chart" style="height: 450px;"></div>
+                    <div id="topic-evolution-chart"></div>
                 </div>
             </div>
 
@@ -1186,8 +1176,7 @@
                             <div class="alert alert-info mb-3" id="community-distribution-description">
                                 <i class="bi bi-info-circle"></i> Shows the relative proportions of different communities or subreddits represented in your search results.
                             </div>
-                            <p class="text-muted mb-3">Displays the distribution of subreddits/communities in search results.</p>
-                            <div id="community-distribution" style="height: 450px; width: 100%;"></div>
+                            <div id="community-distribution"></div>
                         </div>
                     </div>
                 </div>
@@ -1200,7 +1189,6 @@
                     <div class="alert alert-info mb-3" id="topics-description">
                         <i class="bi bi-info-circle"></i> Identifies distinct topics within the content using Latent Dirichlet Allocation (LDA) to reveal key themes.
                     </div>
-                    <p class="text-muted mb-4">Identifies key topics in the content using Latent Dirichlet Allocation (LDA).</p>
                     <div class="row align-items-end mb-4">
                         <div class="col-md-8">
                             <label for="topics-count" class="form-label fw-medium">Number of Topics: <span id="topics-count-value">5</span></label>
@@ -1338,9 +1326,8 @@
                         <div class="chart-container">
                             <h3><i class="bi bi-calendar2-event-fill"></i> Coordinated Behavior Network</h3>
                             <div class="alert alert-info mb-3" id="coordinated-description">
-                                <i class="bi bi-info-circle"></i> Detects potentially coordinated posting behavior by identifying similar content posted within a short time window.
+                                <i class="bi bi-info-circle"></i> Identifies authors who post similar content around the same time, helping detect possible coordinated behavior.
                             </div>
-                            <p class="text-muted mb-4">Shows authors who post similar content within a short time window.</p>
                             <div class="mb-4">
                                 <label for="time-window" class="form-label fw-medium">Time Window (seconds): <span id="time-window-value" class="badge bg-light text-dark">3600</span></label>
                                 <input type="range" class="form-range" id="time-window" min="600" max="21600" step="600" value="3600">

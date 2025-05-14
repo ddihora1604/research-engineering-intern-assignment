@@ -82,8 +82,27 @@ async function updateSectionDescription(sectionId, descriptionElementSelector, c
         const descriptionElement = document.querySelector(descriptionElementSelector);
         if (!descriptionElement) return;
         
-        // Show loading state
-        descriptionElement.innerHTML = `<i class="bi bi-info-circle"></i> <span class="spinner-border spinner-border-sm" role="status"></span> Generating description...`;
+        // Map of section IDs to user-friendly section titles
+        const sectionTitles = {
+            'ai_insights': 'Social Media Insights',
+            'data_story': 'Comprehensive Data Story',
+            'word_cloud': 'Word Cloud',
+            'contributors': 'Top Contributors',
+            'metrics': 'Key Metrics',
+            'timeseries': 'Time Series Analysis',
+            'topic_evolution': 'Topic Evolution',
+            'network': 'User Network',
+            'topics': 'Topic Analysis',
+            'semantic_map': 'Semantic Map',
+            'coordinated': 'Coordinated Behavior',
+            'coordinated_groups': 'Coordinated Content Groups',
+            'community_distribution': 'Community Distribution'
+        };
+        
+        const sectionTitle = sectionTitles[sectionId] || sectionId.replace(/_/g, ' ');
+        
+        // Show loading state with specific section title
+        descriptionElement.innerHTML = `<i class="bi bi-info-circle"></i> <span class="spinner-border spinner-border-sm" role="status"></span> Loading ${sectionTitle}...`;
         
         // Get dynamic description
         const description = await getDynamicDescription(sectionId, activeQuery, context);
@@ -124,8 +143,25 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
     }
 
     activeQuery = query;
-    startDate = document.getElementById('start-date').value;
-    endDate = document.getElementById('end-date').value;
+    startDate = '';
+    endDate = '';
+    
+    // Map of section IDs to user-friendly section titles
+    const sectionTitles = {
+        'ai_insights': 'Social Media Insights',
+        'data_story': 'Comprehensive Data Story',
+        'word_cloud': 'Word Cloud',
+        'contributors': 'Top Contributors',
+        'metrics': 'Key Metrics',
+        'timeseries': 'Time Series Analysis',
+        'topic_evolution': 'Topic Evolution',
+        'network': 'User Network',
+        'topics': 'Topic Analysis',
+        'semantic_map': 'Semantic Map',
+        'coordinated': 'Coordinated Behavior',
+        'coordinated_groups': 'Coordinated Content Groups',
+        'community_distribution': 'Community Distribution'
+    };
     
     // Update all description areas to show loading state before starting analysis
     const descriptionAreas = [
@@ -144,11 +180,12 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
         {id: 'community-distribution-description', section: 'community_distribution'}
     ];
     
-    // Replace static descriptions with loading indicators
+    // Replace static descriptions with loading indicators using specific section titles
     descriptionAreas.forEach(item => {
         const element = document.getElementById(item.id);
         if (element) {
-            element.innerHTML = `<i class="bi bi-info-circle"></i> <span class="spinner-border spinner-border-sm" role="status"></span> Loading ${item.section.replace('_', ' ')} insights...`;
+            const sectionTitle = sectionTitles[item.section] || item.section.replace(/_/g, ' ');
+            element.innerHTML = `<i class="bi bi-info-circle"></i> <span class="spinner-border spinner-border-sm" role="status"></span> Loading ${sectionTitle}...`;
         }
     });
     
@@ -156,12 +193,12 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
     document.getElementById('semantic-map-container').innerHTML = `
         <div class="section-loading">
             <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-            Loading semantic map...
+            Loading ${sectionTitles['semantic_map']}...
         </div>
     `;
     
     document.getElementById('topic-clusters').innerHTML = `
-        <p class="text-muted"><span class="spinner-border spinner-border-sm text-primary" role="status"></span> Loading topic clusters...</p>
+        <p class="text-muted"><span class="spinner-border spinner-border-sm text-primary" role="status"></span> Loading Topic Clusters...</p>
     `;
     
     showLoading(true);
@@ -225,10 +262,10 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
         analysisPerformed = true;
         
         // PERFORMANCE OPTIMIZATION: Create placeholder loading indicators for remaining components
-        document.getElementById('timeseries-chart').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading time series analysis...</div>';
-        document.getElementById('network-graph').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading network analysis...</div>';
-        document.getElementById('topics-container').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading topic analysis...</div>';
-        document.getElementById('coordinated-graph').innerHTML = '<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading coordinated behavior analysis...</div>';
+        document.getElementById('timeseries-chart').innerHTML = `<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading ${sectionTitles['timeseries']}...</div>`;
+        document.getElementById('network-graph').innerHTML = `<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading ${sectionTitles['network']}...</div>`;
+        document.getElementById('topics-container').innerHTML = `<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading ${sectionTitles['topics']}...</div>`;
+        document.getElementById('coordinated-graph').innerHTML = `<div class="section-loading"><div class="spinner-border spinner-border-sm text-primary" role="status"></div> Loading ${sectionTitles['coordinated']}...</div>`;
         document.getElementById('coordinated-groups').innerHTML = '';
         
         // Phase 2: Load the data story and time series (medium weight)
@@ -739,9 +776,6 @@ async function updateTimeSeries(query) {
     const params = new URLSearchParams({
         query: query
     });
-    
-    if (startDate) params.append('start_date', startDate);
-    if (endDate) params.append('end_date', endDate);
     
     const response = await fetch(`/api/timeseries?${params.toString()}`);
     const data = await response.json();
@@ -3857,8 +3891,8 @@ async function handleAnalyzeClick() {
     }
 
     activeQuery = query;
-    startDate = document.getElementById('start-date').value;
-    endDate = document.getElementById('end-date').value;
+    startDate = '';
+    endDate = '';
     
     showLoading(true);
     
@@ -4048,11 +4082,6 @@ async function updateSemanticMap(query) {
         
         // Build the URL with parameters
         let url = `/api/semantic_map?query=${encodeURIComponent(query)}&max_points=${maxPoints}&n_neighbors=${nNeighbors}&min_dist=${minDist}`;
-        
-        // Add date filters if available
-        if (startDate && endDate) {
-            url += `&start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`;
-        }
         
         // Fetch semantic map data
         const response = await fetch(url);
