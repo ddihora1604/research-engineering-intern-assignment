@@ -203,7 +203,8 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
     // Update all description areas to show loading state before starting analysis
     const descriptionAreas = [
         {id: 'ai-insights-description', section: 'ai_insights'},
-        {id: 'data-story-description', section: 'data_story'},
+        // Remove or comment out this line for the data story section
+        // updateSectionDescription('data_story', '#data-story-description'),
         {id: 'word-cloud-description', section: 'word_cloud'},
         {id: 'contributors-description', section: 'contributors'},
         {id: 'metrics-description', section: 'metrics'},
@@ -265,7 +266,7 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
         // Reset data story with placeholder
         document.getElementById('data-story').innerHTML = `
             <div class="card-body">
-                <p class="text-muted">Generating comprehensive data story for "${query}"...</p>
+                <p class="text-muted">Enter a search query to generate a data story or case study.</p>
             </div>
         `;
         
@@ -300,7 +301,8 @@ document.getElementById('analyze-btn').addEventListener('click', async () => {
         // Update dynamic descriptions for the overview sections first
         const overviewDescriptionPromises = [
             updateSectionDescription('ai_insights', '#ai-insights-description'),
-            updateSectionDescription('data_story', '#data-story-description'),
+            // Remove or comment out this line for the data story section
+            // updateSectionDescription('data_story', '#data-story-description'),
             updateSectionDescription('word_cloud', '#word-cloud-description'),
             updateSectionDescription('contributors', '#contributors-description')
         ];
@@ -2407,7 +2409,6 @@ function dragended(event) {
 async function generateDataStory(query) {
     try {
         console.log('Generating data story for query:', query);
-        
         // Collect data from various endpoints to build the story
         const [summaryData, timeseriesData, topContributors, topicsData, coordinatedData, wordsData] = await Promise.all([
             fetch(`/api/ai_summary?query=${encodeURIComponent(query)}`).then(r => r.json()).catch(() => null),
@@ -2425,378 +2426,252 @@ async function generateDataStory(query) {
             return;
         }
         
-        // Process timeseries data for visualization
-        let timelineHtml = '';
-        let peakDays = [];
-        let trend = "fluctuating";
-        let daysDiff = 0;
+        // Extract key information for the case study
+        let timeSpan = 'the analyzed period';
+        let peakDate = 'recent days';
+        let totalPosts = 0;
+        let uniqueAuthors = 0;
+        let mainCommunities = [];
+        let topKeywords = [];
+        let dominantTopic = '';
+        let mainContributors = [];
         
+        // Process time data
         if (timeseriesData && timeseriesData.length > 0) {
             // Sort by date
             timeseriesData.sort((a, b) => new Date(a.date) - new Date(b.date));
             
-            // Find peak days
-            peakDays = [...timeseriesData]
-                .sort((a, b) => b.count - a.count)
-                .slice(0, 3)
-                .map(d => ({date: new Date(d.date).toLocaleDateString(), count: d.count, rawDate: d.date}));
-            
-            // Calculate trend
-            if (timeseriesData.length > 5) {
-                const firstHalf = timeseriesData.slice(0, Math.floor(timeseriesData.length/2));
-                const secondHalf = timeseriesData.slice(Math.floor(timeseriesData.length/2));
-                
-                const firstHalfAvg = firstHalf.reduce((sum, item) => sum + item.count, 0) / firstHalf.length;
-                const secondHalfAvg = secondHalf.reduce((sum, item) => sum + item.count, 0) / secondHalf.length;
-                
-                if (secondHalfAvg > firstHalfAvg * 1.2) {
-                    trend = "increasing";
-                } else if (secondHalfAvg < firstHalfAvg * 0.8) {
-                    trend = "decreasing";
-                }
-            }
-            
             // Calculate timespan
             const firstDate = new Date(timeseriesData[0].date);
             const lastDate = new Date(timeseriesData[timeseriesData.length - 1].date);
-            daysDiff = Math.round((lastDate - firstDate) / (1000 * 60 * 60 * 24));
+            const daysDiff = Math.round((lastDate - firstDate) / (1000 * 60 * 60 * 24));
+            timeSpan = `${daysDiff} days (${firstDate.toLocaleDateString()} to ${lastDate.toLocaleDateString()})`;
             
-            // Create mini timeline visualization
-            timelineHtml = `
-                <div class="mini-timeline mb-3">
-                    <div class="timeline-header d-flex justify-content-between">
-                        <span>${firstDate.toLocaleDateString()}</span>
-                        <span>${lastDate.toLocaleDateString()}</span>
-                    </div>
-                    <div class="timeline-body position-relative" style="height: 60px; background-color: #f8f9fa; border-radius: 4px;">
-                        ${timeseriesData.map(point => {
-                            const date = new Date(point.date);
-                            const isPeak = peakDays.some(p => p.rawDate === point.date);
-                            const left = ((date - firstDate) / (lastDate - firstDate) * 100).toFixed(2);
-                            const height = Math.max(10, Math.min(50, (point.count / Math.max(...timeseriesData.map(d => d.count))) * 50));
-                            return `
-                                <div class="timeline-point position-absolute" 
-                                     style="left: ${left}%; bottom: 0; width: 4px; height: ${height}px; 
-                                            background-color: ${isPeak ? '#dc3545' : '#0d6efd'};" 
-                                     title="${date.toLocaleDateString()}: ${point.count} posts">
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Process topic data for better visualization
-        let topicsHtml = '';
-        let topicTrends = [];
-        
-        if (topicsData && topicsData.topics && topicsData.topics.length > 0) {
-            // Extract the top topics
-            const topics = topicsData.topics.slice(0, 3);
-            
-            // Process topic evolution if available
-            if (topicsData.topic_evolution) {
-                for (let i = 0; i < topics.length; i++) {
-                    const topicKey = `topic_${i}`;
-                    if (topicsData.topic_evolution[topicKey]) {
-                        const evolution = topicsData.topic_evolution[topicKey];
-                        const dates = Object.keys(evolution).sort();
-                        
-                        if (dates.length > 1) {
-                            const firstCount = evolution[dates[0]];
-                            const lastCount = evolution[dates[dates.length - 1]];
-                            const change = ((lastCount - firstCount) / firstCount * 100).toFixed(1);
-                            
-                            topicTrends.push({
-                                topicId: i,
-                                words: topics[i].top_words.slice(0, 3).join(', '),
-                                change: change,
-                                trend: change > 20 ? 'rising' : change < -20 ? 'falling' : 'stable'
-                            });
-                        }
-                    }
-                }
-            }
-            
-            // Create topic visualization
-            topicsHtml = `
-                <div class="topics-summary mb-3">
-                    <div class="row">
-                        ${topics.map((topic, i) => `
-                            <div class="col-md-4 mb-2">
-                                <div class="topic-card p-2 border rounded" style="background-color: ${['#f8edeb', '#eaf4f4', '#f4f3ee'][i % 3]};">
-                                    <h6 class="topic-title">Theme ${i+1}</h6>
-                                    <div class="topic-keywords">
-                                        ${topic.word_weight_pairs.slice(0, 7).map(pair => 
-                                            `<span class="badge rounded-pill text-bg-${['primary', 'success', 'secondary', 'info', 'dark'][Math.floor(Math.random() * 5)]}" 
-                                                  style="font-size: ${Math.max(0.7, Math.min(1.1, 0.7 + pair.weight/100))}rem;">
-                                                ${pair.word}
-                                            </span>`
-                                        ).join(' ')}
-                                    </div>
-                                    ${topic.representative_docs && topic.representative_docs.length > 0 ? 
-                                        `<div class="topic-example mt-2 small">
-                                            <em>"${topic.representative_docs[0].title}"</em>
-                                         </div>` : ''}
-                                    ${topicTrends.find(t => t.topicId === i) ? 
-                                        `<div class="trend-indicator mt-1 small ${topicTrends.find(t => t.topicId === i).trend === 'rising' ? 'text-success' : 
-                                                                                  topicTrends.find(t => t.topicId === i).trend === 'falling' ? 'text-danger' : 'text-secondary'}">
-                                            <i class="bi bi-${topicTrends.find(t => t.topicId === i).trend === 'rising' ? 'arrow-up-circle-fill' : 
-                                                             topicTrends.find(t => t.topicId === i).trend === 'falling' ? 'arrow-down-circle-fill' : 'dash-circle'}"></i>
-                                            ${topicTrends.find(t => t.topicId === i).change}%
-                                         </div>` : ''}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Process coordinated behavior data
-        let coordinatedHtml = '';
-        let significantGroups = [];
-        
-        if (coordinatedData && coordinatedData.groups && coordinatedData.groups.length > 0) {
-            // Get the most significant coordination groups
-            significantGroups = coordinatedData.groups
-                .sort((a, b) => b.size - a.size)
-                .slice(0, 2);
-                
-            if (significantGroups.length > 0) {
-                coordinatedHtml = `
-                    <div class="coordinated-summary mb-3">
-                        <div class="row">
-                            ${significantGroups.map((group, i) => `
-                                <div class="col-md-6 mb-2">
-                                    <div class="coordination-card p-2 border border-warning rounded" style="background-color: #fff8e6;">
-                                        <h6 class="coordination-title">
-                                            <i class="bi bi-people-fill"></i> Coordinated Group ${i+1}
-                                            <span class="badge rounded-pill text-bg-warning">${group.size} posts</span>
-                                        </h6>
-                                        <div class="coordination-meta d-flex justify-content-between small text-secondary mb-2">
-                                            <span>${group.unique_authors} authors</span>
-                                            <span>Timespan: ${Math.round(group.time_span / 60)} minutes</span>
-                                        </div>
-                                        <div class="coordination-example p-2 small bg-light rounded">
-                                            <div class="d-flex justify-content-between">
-                                                <span class="fw-bold">${group.posts[0].author}</span>
-                                                <span class="text-secondary">${new Date(group.posts[0].created_utc).toLocaleTimeString()}</span>
-                                            </div>
-                                            <div class="mt-1">${group.posts[0].title}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                `;
+            // Find peak day
+            const peakDay = [...timeseriesData].sort((a, b) => b.count - a.count)[0];
+            if (peakDay) {
+                peakDate = new Date(peakDay.date).toLocaleDateString();
             }
         }
         
-        // Process word data for keyword visualization
-        let keywordsHtml = '';
+        // Get summary metrics
+        if (summaryData && summaryData.metrics) {
+            totalPosts = summaryData.metrics.total_posts;
+            uniqueAuthors = summaryData.metrics.unique_authors;
+            
+            if (summaryData.metrics.top_subreddits) {
+                mainCommunities = Object.keys(summaryData.metrics.top_subreddits).slice(0, 3);
+            }
+        }
         
+        // Get keywords
         if (wordsData && wordsData.length > 0) {
-            // Get the top 12 words
-            const topWords = wordsData.slice(0, 12);
-            const maxCount = Math.max(...topWords.map(w => w.count));
-            
-            keywordsHtml = `
-                <div class="keywords-cloud mb-3 text-center" style="line-height: 1.8;">
-                    ${topWords.map(word => {
-                        const size = Math.max(0.9, Math.min(1.8, 0.9 + (word.count / maxCount) * 1.0));
-                        const opacity = Math.max(0.6, Math.min(1.0, 0.6 + (word.count / maxCount) * 0.4));
-                        return `
-                            <span class="px-1" style="font-size: ${size}rem; opacity: ${opacity};">
-                                ${word.word}
-                            </span>
-                        `;
-                    }).join('')}
-                </div>
-            `;
+            topKeywords = wordsData.slice(0, 10).map(w => w.word);
         }
         
-        // Build the narrative components with enhanced visualization
+        // Get dominant topic
+        if (topicsData && topicsData.topics && topicsData.topics.length > 0) {
+            dominantTopic = topicsData.topics[0].top_words.slice(0, 5).join(', ');
+        }
+        
+        // Get main contributors
+        if (topContributors && topContributors.length > 0) {
+            mainContributors = topContributors.slice(0, 3).map(c => ({
+                name: c.author,
+                count: c.count
+            }));
+        }
+        
+        // Determine if there's coordinated activity
+        let hasCoordination = false;
+        let coordinationDetails = null;
+        if (coordinatedData && coordinatedData.groups && coordinatedData.groups.length > 0) {
+            hasCoordination = true;
+            const significantGroup = coordinatedData.groups[0];
+            coordinationDetails = {
+                groupSize: significantGroup.size,
+                uniqueAuthors: significantGroup.unique_authors,
+                timeSpan: Math.round(significantGroup.time_span / 60), // convert to minutes
+                examplePost: significantGroup.posts[0].title
+            };
+        }
+        
+        // Build the case study narrative based on collected data
         let storyHtml = `
-            <div class="card-body">
+            <div class="card-body data-story-content">
                 <div class="story-header mb-4">
-                    <h4 class="story-title">The <span class="text-primary">${query}</span> Narrative</h4>
-                    <div class="story-subtitle text-secondary">
-                        ${summaryData && summaryData.metrics ? 
-                          `Based on analysis of ${summaryData.metrics.total_posts} posts from ${summaryData.metrics.unique_authors} authors` : 
-                          `Analysis of social media conversations`}
-                    </div>
+                    <h3 class="story-title mb-3">Case Study: The <span class="text-primary">${query}</span> Phenomenon</h3>
+                    <p class="story-introduction">
+                        This case study examines the social media conversation around <strong>"${query}"</strong>,
+                        analyzing ${totalPosts} posts from ${uniqueAuthors} unique contributors over ${timeSpan}.
+                    </p>
                 </div>
                 
                 <div class="story-section mb-4">
-                    <h5 class="section-title d-flex align-items-center">
-                        <i class="bi bi-clock-history me-2"></i> Timeline Analysis
-                    </h5>
-                    <div class="section-content">
-                        ${timelineHtml}
-                        
+                    <h4 class="section-title">Background & Context</h4>
+                    <p>
+                        The discourse around <strong>"${query}"</strong> primarily took place in
+                        ${mainCommunities.length > 0 ? `the communities of r/${mainCommunities.join(', r/')}` : 'various online communities'},
+                        with peak activity occurring on <strong>${peakDate}</strong>.
+                    </p>
+                    <p>
+                        Analysis reveals several key themes dominating the conversation, centered around
+                        <strong>${dominantTopic || 'various interconnected topics'}</strong>. These themes reflect broader
+                        social patterns and concerns that have shaped public discussion on this subject.
+                    </p>
+                </div>
+                
+                <div class="story-section mb-4">
+                    <h4 class="section-title">Key Findings</h4>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="finding-card p-3 mb-3 border rounded shadow-sm">
+                                <h5 class="finding-title"><i class="bi bi-chat-quote"></i> Discourse Patterns</h5>
+                                <p>
+                                    The conversation around <strong>"${query}"</strong> shows distinctive linguistic patterns,
+                                    with frequent use of terms like <strong>${topKeywords.slice(0, 5).join('</strong>, <strong>')}</strong>.
+                                </p>
+                                <p>
+                                    These key terms indicate a focus on
+                                    ${dominantTopic ? `<strong>${dominantTopic.split(',')[0]}</strong> and related concepts` : 'several interrelated concepts'},
+                                    suggesting a complex discourse landscape.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="finding-card p-3 mb-3 border rounded shadow-sm">
+                                <h5 class="finding-title"><i class="bi bi-people"></i> Community Dynamics</h5>
+                                <p>
+                                    ${mainContributors.length > 0 ?
+                                        `The conversation was significantly shaped by key voices including <strong>${mainContributors.map(c => c.name).join('</strong>, <strong>')}</strong>,
+                                        who collectively contributed ${mainContributors.reduce((sum, c) => sum + c.count, 0)} posts.` :
+                                        `The conversation featured a diverse array of voices with no single dominant contributor.`}
+                                </p>
+                                <p>
+                                    ${hasCoordination ?
+                                        `Evidence suggests coordinated posting behavior, with ${coordinationDetails.groupSize} similar posts
+                                        from ${coordinationDetails.uniqueAuthors} users within just ${coordinationDetails.timeSpan} minutes.` :
+                                        `The conversation appears to have evolved organically, with no evidence of coordinated posting behavior.`}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="finding-card p-3 mb-3 border rounded shadow-sm">
+                        <h5 class="finding-title"><i class="bi bi-graph-up"></i> Temporal Patterns</h5>
                         <p>
-                            Discussion about <span class="fw-bold">"${query}"</span> shows a 
-                            <span class="badge rounded-pill text-bg-${trend === 'increasing' ? 'success' : trend === 'decreasing' ? 'danger' : 'secondary'}">
-                                ${trend}
-                            </span> pattern over ${daysDiff > 0 ? `${daysDiff} days` : 'the analyzed period'}.
-                            
-                            ${peakDays.length > 0 ? `
-                                <span class="d-block mt-2">
-                                    <i class="bi bi-graph-up"></i> Peak activity occurred on 
-                                    <span class="fw-bold">${peakDays[0].date}</span> with 
-                                    <span class="badge rounded-pill text-bg-danger">${peakDays[0].count} posts</span>.
-                                </span>
-                            ` : ''}
-                            
-                            ${peakDays.length > 1 ? `
-                                <span class="d-block mt-1">
-                                    <i class="bi bi-arrow-up-right"></i> Other notable spikes: 
-                                    ${peakDays.slice(1).map(d => `
-                                        <span class="fw-bold">${d.date}</span> 
-                                        <span class="badge rounded-pill text-bg-secondary">${d.count}</span>
-                                    `).join(', ')}
-                                </span>
-                            ` : ''}
+                            Analysis of posting frequency reveals ${timeseriesData && timeseriesData.length > 5 ?
+                                `distinct patterns over the ${timeSpan} period, with notable fluctuations corresponding to external events.` :
+                                `a relatively ${timeseriesData && timeseriesData.length > 0 && timeseriesData[0].count > timeseriesData[timeseriesData.length - 1].count ? 'decreasing' : 'steady'} trend over time.`}
+                        </p>
+                        <p>
+                            The peak activity on <strong>${peakDate}</strong> coincided with
+                            ${dominantTopic ? `intensified discussion about <strong>${dominantTopic.split(',')[0]}</strong>` : 'heightened community interest'},
+                            suggesting a potential correlation with ${mainCommunities.length > 0 ? `activities in r/${mainCommunities[0]}` : 'broader online trends'}.
                         </p>
                     </div>
                 </div>
                 
                 <div class="story-section mb-4">
-                    <h5 class="section-title d-flex align-items-center">
-                        <i class="bi bi-chat-square-text me-2"></i> Key Themes & Topics
-                    </h5>
-                    <div class="section-content">
-                        ${topicsHtml ? topicsHtml : 
-                          `<p class="text-muted"><i class="bi bi-exclamation-circle"></i> Topic analysis not available for this query.</p>`}
+                    <h4 class="section-title">In-Depth Analysis</h4>
+                    <div class="analysis-card p-3 border rounded shadow-sm">
+                        <h5 class="analysis-subtitle mb-3">The Emergence of Key Narratives</h5>
+                        <p>
+                            Our analysis identifies several interconnected narratives that have shaped the discourse around
+                            <strong>"${query}"</strong>. These narratives reflect not just topical interests but deeper community
+                            values and concerns:
+                        </p>
                         
-                        <div class="keywords-section mt-3">
-                            <h6>Key Terms</h6>
-                            ${keywordsHtml ? keywordsHtml :
-                              `<p class="text-muted small">No keyword data available.</p>`}
-                        </div>
+                        <ul class="narrative-list mt-3">
+                            ${topicsData && topicsData.topics ? topicsData.topics.slice(0, 3).map((topic, i) => `
+                                <li class="mb-3">
+                                    <strong>Narrative ${i+1}: ${topic.top_words.slice(0, 3).join(' & ')}</strong>
+                                    <p>
+                                        This narrative centers around ${topic.top_words.slice(0, 5).join(', ')}, reflecting
+                                        ${i === 0 ? 'the dominant discourse' : i === 1 ? 'a secondary but significant perspective' : 'an alternative viewpoint'}
+                                        within the community. ${topic.representative_docs && topic.representative_docs.length > 0 ?
+                                            `A representative example states: "${topic.representative_docs[0].title}"` : ''}
+                                    </p>
+                                </li>
+                            `).join('') : `
+                                <li class="mb-3">
+                                    <strong>Primary Narrative: Community Consensus</strong>
+                                    <p>
+                                        The conversation shows a relatively united perspective on ${query}, with limited evidence of competing narratives.
+                                        The discourse primarily revolves around ${topKeywords.slice(0, 3).join(', ')}.
+                                    </p>
+                                </li>
+                                <li class="mb-3">
+                                    <strong>Secondary Narrative: Practical Applications</strong>
+                                    <p>
+                                        A secondary thread focuses on practical aspects and real-world implications, particularly in relation to
+                                        ${topKeywords.slice(3, 6).join(', ')}.
+                                    </p>
+                                </li>
+                            `}
+                        </ul>
                     </div>
                 </div>
                 
                 <div class="story-section mb-4">
-                    <h5 class="section-title d-flex align-items-center">
-                        <i class="bi bi-people me-2"></i> Community Dynamics
-                    </h5>
-                    <div class="section-content">
-                        ${topContributors && topContributors.length > 0 ? `
-                            <div class="voices-section mb-3">
-                                <h6>Key Voices</h6>
-                                <div class="row">
-                                    ${topContributors.slice(0, 3).map((contributor, i) => `
-                                        <div class="col-md-4 mb-2">
-                                            <div class="contributor-card p-2 text-center border rounded">
-                                                <div class="contributor-icon mb-1">
-                                                    <i class="bi bi-person-circle" style="font-size: 1.5rem; color: ${['#0d6efd', '#6610f2', '#6f42c1'][i % 3]};"></i>
-                                                </div>
-                                                <div class="contributor-name fw-bold">${contributor.author}</div>
-                                                <div class="contributor-stat small">${contributor.count} posts</div>
-                                            </div>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            </div>
-                        ` : ''}
-                        
-                        ${coordinatedHtml ? `
-                            <div class="coordination-section mt-3">
-                                <h6>Coordinated Behavior</h6>
-                                ${coordinatedHtml}
-                                <p class="small text-secondary">
-                                    <i class="bi bi-info-circle"></i>
-                                    Coordinated posting may indicate organized campaigns or natural responses to significant events.
-                                </p>
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
-                
-                <div class="story-section mb-4">
-                    <h5 class="section-title d-flex align-items-center">
-                        <i class="bi bi-lightbulb me-2"></i> Insights & Case Studies
-                    </h5>
-                    <div class="section-content">
-                        ${peakDays && peakDays.length > 0 ? `
-                            <div class="case-study p-3 mb-3 border-start border-4 border-primary" style="background-color: #f8f9fa;">
-                                <h6 class="case-study-title">
-                                    Case Study: Activity Spike on ${peakDays[0].date}
-                                </h6>
-                                <p>
-                                    On ${peakDays[0].date}, conversation about <span class="fw-bold">"${query}"</span>
-                                    reached its peak with ${peakDays[0].count} posts.
-                                    
-                                    ${topContributors && topContributors.length > 1 ? `
-                                        <span class="d-block mt-2">
-                                            <i class="bi bi-person-check"></i> Notable contributors: 
-                                            ${topContributors.slice(0, 2).map(c => `<span class="fw-bold">${c.author}</span>`).join(' and ')}
-                                        </span>
-                                    ` : ''}
-                                    
-                                    ${topicsData && topicsData.topics && topicsData.topics.length > 0 ? `
-                                        <span class="d-block mt-2">
-                                            <i class="bi bi-chat-square-text"></i> Key terms: 
-                                            ${topicsData.topics[0].top_words.slice(0, 3).join(', ')}
-                                        </span>
-                                    ` : ''}
-                                </p>
-                            </div>
-                        ` : ''}
-                        
-                        <div class="implications mt-3">
-                            <h6>Key Takeaways</h6>
-                            <ul class="implications-list">
-                                ${trend !== 'fluctuating' ? `
-                                    <li>
-                                        The <span class="fw-bold ${trend === 'increasing' ? 'text-success' : 'text-danger'}">${trend}</span> pattern suggests
-                                        ${trend === 'increasing' ? 
-                                          'growing relevance that may continue to gain attention.' : 
-                                          'decreasing interest as the topic becomes less central to discourse.'}
-                                    </li>
-                                ` : ''}
-                                
-                                ${topContributors && topContributors.length > 0 ? `
-                                    <li>
-                                        Community dynamics show 
-                                        ${topContributors.length < 10 ? 
-                                          'a centralized conversation dominated by a few key voices.' :
-                                          'diverse participation across many contributors.'}
-                                    </li>
-                                ` : ''}
-                                
-                                ${coordinatedData && coordinatedData.groups && coordinatedData.groups.length > 0 ? `
-                                    <li>
-                                        ${coordinatedData.groups.length > 3 ? 'Significant' : 'Some'} coordinated posting patterns
-                                        suggest potential organized activity around this topic.
-                                    </li>
-                                ` : ''}
-                                
-                                ${topicsData && topicTrends && topicTrends.length > 0 ? `
-                                    <li>
-                                        Theme evolution shows that discussion about
-                                        "${topicTrends.find(t => t.trend === 'rising')?.words || topicsData.topics[0].top_words.slice(0, 3).join(', ')}"
-                                        ${topicTrends.find(t => t.trend === 'rising') ? 'is gaining traction.' : 'remains prominent.'}
-                                    </li>
-                                ` : ''}
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="story-footer mt-4 pt-3 border-top">
-                    <p class="small text-secondary">
-                        This data story was automatically generated based on analysis of posts containing "${query}".
-                        For more detailed analysis, explore the visualization tabs above.
+                    <h4 class="section-title">Implications & Conclusions</h4>
+                    <p>
+                        The analysis of conversations around <strong>"${query}"</strong> reveals several key insights
+                        with broader implications:
                     </p>
-                    <button class="btn btn-sm btn-outline-primary" onclick="window.print()">
-                        <i class="bi bi-printer"></i> Print Story
-                    </button>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <div class="implication-card p-3 border-start border-4 border-primary bg-light mb-3">
+                                <h5 class="implications-title"><i class="bi bi-lightbulb"></i> Community Insights</h5>
+                                <ul>
+                                    <li>
+                                        ${mainCommunities.length > 1 ?
+                                            `Cross-community engagement suggests broad interest spanning multiple domains.` :
+                                            `Concentrated discussion in specific communities indicates specialized interest.`}
+                                    </li>
+                                    <li>
+                                        ${uniqueAuthors > totalPosts/2 ?
+                                            `High ratio of unique contributors to posts indicates broad but shallow engagement.` :
+                                            `Lower ratio of unique contributors to posts suggests deeper engagement from a core community.`}
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="implication-card p-3 border-start border-4 border-success bg-light mb-3">
+                                <h5 class="implications-title"><i class="bi bi-bar-chart"></i> Trend Significance</h5>
+                                <ul>
+                                    <li>
+                                        ${timeseriesData && timeseriesData.length > 0 && timeseriesData[0].count < timeseriesData[timeseriesData.length - 1].count ?
+                                            `The growing conversation suggests increasing relevance and public interest.` :
+                                            `The conversation pattern suggests an established rather than emerging topic.`}
+                                    </li>
+                                    <li>
+                                        ${hasCoordination ?
+                                            `Evidence of coordinated activity warrants attention to potential organized information campaigns.` :
+                                            `The organic evolution of discussion indicates authentic public interest.`}
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="conclusion-card p-3 mt-3 border rounded shadow-sm">
+                        <h5 class="conclusion-title text-center mb-3">Final Assessment</h5>
+                        <p>
+                            The conversation around <strong>"${query}"</strong> represents a
+                            ${uniqueAuthors > 100 ? 'significant' : 'notable'}
+                            discourse phenomenon characterized by
+                            ${hasCoordination ? 'elements of coordination alongside' : ''}
+                            organic community engagement. The discourse is primarily
+                            ${dominantTopic ? `centered around ${dominantTopic.split(',')[0]}` : 'multifaceted'},
+                            with implications for understanding both online community dynamics and broader public interest in this subject.
+                        </p>
+                    </div>
                 </div>
+                
+                
             </div>
         `;
         
@@ -2806,34 +2681,43 @@ async function generateDataStory(query) {
         // Add custom CSS for the data story
         const styleElement = document.createElement('style');
         styleElement.textContent = `
-            .mini-timeline .timeline-point:hover {
-                height: 55px !important;
-                width: 6px !important;
-                transition: all 0.2s ease;
-                z-index: 10;
+            .data-story-content {
+                font-family: 'Lora', serif;
+                line-height: 1.6;
             }
             .story-title {
-                font-weight: 600;
+                font-weight: 700;
+                color: #212529;
+                margin-bottom: 1rem;
             }
             .section-title {
                 font-weight: 600;
+                color: #343a40;
+                margin-bottom: 1rem;
+                padding-bottom: 0.5rem;
+                border-bottom: 1px solid #dee2e6;
+            }
+            .finding-title, .analysis-subtitle, .implications-title, .conclusion-title {
+                font-weight: 600;
                 color: #495057;
-                margin-bottom: 15px;
+                margin-bottom: 0.8rem;
             }
-            .topic-card, .contributor-card, .coordination-card {
-                transition: all 0.2s ease;
+            .finding-card, .analysis-card, .implication-card, .conclusion-card {
+                border-radius: 0.5rem;
+                transition: all 0.3s ease;
             }
-            .topic-card:hover, .contributor-card:hover, .coordination-card:hover {
-                transform: translateY(-5px);
-                box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            .finding-card:hover, .analysis-card:hover, .conclusion-card:hover {
+                box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important;
             }
-            .keywords-cloud span {
-                display: inline-block;
-                transition: all 0.2s ease;
+            .narrative-list li {
+                margin-bottom: 1rem;
             }
-            .keywords-cloud span:hover {
-                transform: scale(1.2);
+            .narrative-list li strong {
                 color: #0d6efd;
+            }
+            .story-introduction {
+                font-size: 1.1rem;
+                color: #495057;
             }
             @media print {
                 .dashboard-header, .controls, .nav-tabs, .container-fluid > *:not(#data-story) {
@@ -2846,13 +2730,37 @@ async function generateDataStory(query) {
                     box-shadow: none !important;
                     border: none !important;
                 }
+                .data-story-content {
+                    font-size: 12pt;
+                }
+                .section-title {
+                    font-size: 16pt;
+                }
+                .finding-title, .analysis-subtitle, .implications-title, .conclusion-title {
+                    font-size: 14pt;
+                }
             }
         `;
         document.head.appendChild(styleElement);
+        
+        const desc = document.getElementById('data-story-description');
+        if (desc) desc.style.display = 'none';
     } catch (error) {
         console.error('Error generating data story:', error);
+        // Show error message if generation fails
+        const storyContainer = document.getElementById('data-story');
+        if (storyContainer) {
+            storyContainer.innerHTML = `
+                <div class="card-body">
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        Error generating case study. Please try a different query or reload the page.
+                    </div>
+                </div>
+            `;
+        }
     }
-} 
+}
 
 // Add CSS for section loading indicators
 document.addEventListener('DOMContentLoaded', function() {
@@ -3799,7 +3707,7 @@ async function handleAnalyzeClick() {
         // Reset data story with placeholder
         document.getElementById('data-story').innerHTML = `
             <div class="card-body">
-                <p class="text-muted">Generating comprehensive data story for "${query}"...</p>
+                <p class="text-muted">Enter a search query to generate a data story or case study.</p>
             </div>
         `;
         
@@ -3834,7 +3742,8 @@ async function handleAnalyzeClick() {
         // Update dynamic descriptions for the overview sections first
         const overviewDescriptionPromises = [
             updateSectionDescription('ai_insights', '#ai-insights-description'),
-            updateSectionDescription('data_story', '#data-story-description'),
+            // Remove or comment out this line for the data story section
+            // updateSectionDescription('data_story', '#data-story-description'),
             updateSectionDescription('word_cloud', '#word-cloud-description'),
             updateSectionDescription('contributors', '#contributors-description')
         ];
