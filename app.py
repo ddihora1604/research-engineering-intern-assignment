@@ -1211,7 +1211,7 @@ def generate_structured_t5_summary(summary_context, tokenizer, model, query):
     
     input_text = f"Analyze and summarize the following social media trends in detail: {summary_context}"
     inputs = tokenizer(input_text, return_tensors="pt", max_length=512, truncation=True)
-    outputs = model.generate(**inputs, max_length=300, min_length=150)
+    outputs = model.generate(**inputs, max_length=500, min_length=200)
     t5_summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
     
     # Structure the T5 output with HTML formatting
@@ -1422,18 +1422,30 @@ def get_dynamic_description():
                     <li>Understand the broader context of social media activity</li>
                 </ul>
             </div>
+        """,
+        "semantic_map": """
+            <div class='description-content'>
+                <h4 class='section-heading'>Semantic Map Visualization</h4>
+                <p>This visualization displays content in a 2D space where proximity represents semantic similarity. Posts with similar themes and language appear clustered together.</p>
+                <ul>
+                    <li>Discover thematic clusters and content relationships</li>
+                    <li>Identify conceptually related posts across different authors</li>
+                    <li>Visualize the semantic landscape of the conversation</li>
+                    <li>Explore how different narratives relate to each other</li>
+                </ul>
+            </div>
         """
     }
     
+    # Parse data context if provided
+    context_data = {}
     try:
-        # Parse data context if provided
-        context_data = {}
-        try:
-            import json
-            context_data = json.loads(data_context)
-        except:
-            pass
-        
+        import json
+        context_data = json.loads(data_context)
+    except:
+        pass
+    
+    try:
         # Only proceed with Groq if API key is available
         if not has_groq or not GROQ_API_KEY:
             return jsonify({'description': default_description.get(section, """
@@ -1498,6 +1510,12 @@ def get_dynamic_description():
                 "tech": "multi-faceted data synthesis with temporal and thematic organization",
                 "metrics": "pattern correlation, event sequencing, thematic connection",
                 "insights": "holistic understanding, causal relationships, narrative arc"
+            },
+            "semantic_map": {
+                "title": "semantic map visualization of content",
+                "tech": "dimensionality reduction (UMAP) and clustering (HDBSCAN)",
+                "metrics": "semantic similarity, thematic clusters, content relationships",
+                "insights": "conceptual connections, narrative landscapes, thematic exploration"
             }
         }
         
@@ -1512,17 +1530,17 @@ def get_dynamic_description():
         detail_settings = {
             "basic": {
                 "description": "Write a brief explanation (2-3 sections)",
-                "max_tokens": 250,
+                "max_tokens": 750,
                 "sections": 1
             },
             "detailed": {
                 "description": "Write a comprehensive explanation (4-5 sections with specific details)",
-                "max_tokens": 450,
+                "max_tokens": 1200,
                 "sections": 2
             },
             "expert": {
                 "description": "Write an in-depth analytical explanation (5+ sections with technical details)",
-                "max_tokens": 600,
+                "max_tokens": 1800,
                 "sections": 3
             }
         }
@@ -1560,6 +1578,17 @@ def get_dynamic_description():
                                         data['title'].str.contains(query, case=False, na=False)]
                     author_count = filtered_data['author'].nunique()
                     enhanced_context = f"The network visualization shows interactions between {node_count} users out of {author_count} total authors in the dataset."
+                except:
+                    pass
+            
+            elif section == "semantic_map":
+                # Add context for semantic map
+                try:
+                    total_posts = context_data.get("total_posts", 0)
+                    cluster_count = context_data.get("cluster_count", 0)
+                    n_neighbors = context_data.get("n_neighbors", 0)
+                    min_dist = context_data.get("min_dist", 0)
+                    enhanced_context = f"The semantic map displays {total_posts} posts from the dataset, grouped into {cluster_count} thematic clusters. The visualization uses UMAP with n_neighbors={n_neighbors} and min_dist={min_dist}."
                 except:
                     pass
             
