@@ -1188,6 +1188,31 @@
                     </div>
                 </div>
                 
+                <!-- Word Cloud and Top Contributors Section -->
+                <div class="row mt-4 d-flex">
+                    <!-- Word Cloud -->
+                    <div class="col-md-6 d-flex">
+                        <div class="chart-container w-100">
+                            <h3><i class="bi bi-cloud"></i> Word Cloud</h3>
+                            <div class="alert alert-info mb-3" id="word-cloud-description">
+                                <i class="bi bi-info-circle"></i> Highlights the most frequently occurring terms in your query, with size reflecting their prominence in the conversation.
+                            </div>
+                            <div id="word-cloud" class="flex-grow-1"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Top Contributors -->
+                    <div class="col-md-6 d-flex">
+                        <div class="chart-container w-100">
+                            <h3><i class="bi bi-people-fill"></i> Top Contributors</h3>
+                            <div class="alert alert-info mb-3" id="contributors-description">
+                                <i class="bi bi-info-circle"></i> Identifies the most active users posting content, which matches your search criteria.
+                            </div>
+                            <div id="contributors-overview" class="flex-grow-1"></div>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- Data Story Section - Full Width -->
                 <div class="row mt-4">
                     <div class="col-12">
@@ -1202,31 +1227,6 @@
                         </div>
                     </div>
                 </div>
-                
-                <!-- Word Cloud and Top Contributors Section -->
-                <div class="row mt-4">
-                    <!-- Word Cloud -->
-                    <div class="col-md-6">
-                        <div class="chart-container">
-                            <h3><i class="bi bi-cloud"></i> Word Cloud</h3>
-                            <div class="alert alert-info mb-3" id="word-cloud-description">
-                                <i class="bi bi-info-circle"></i> Highlights the most frequently occurring terms in your query, with size reflecting their prominence in the conversation.
-                            </div>
-                            <div id="word-cloud"></div>
-                        </div>
-                    </div>
-                    
-                    <!-- Top Contributors -->
-                    <div class="col-md-6">
-                        <div class="chart-container">
-                            <h3><i class="bi bi-people-fill"></i> Top Contributors</h3>
-                            <div class="alert alert-info mb-3" id="contributors-description">
-                                <i class="bi bi-info-circle"></i> Identifies the most active users posting content, which matches your search criteria.
-                            </div>
-                            <div id="contributors-overview"></div>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <!-- Time Series Tab -->
@@ -1237,7 +1237,7 @@
                         <i class="bi bi-info-circle"></i> Tracks post volume over time to reveal when discussions peaked, declined, or remained steady.
                     </div>
                     
-                    <div id="timeseries-chart" style="min-height: 650px; overflow: visible; width: 100%;"></div>
+                    <div id="timeseries-chart" style="height: 650px; width: 100%; position: relative;"></div>
                 </div>
                 
                 <div class="chart-container mt-5 pb-4">
@@ -1246,7 +1246,7 @@
                         <i class="bi bi-info-circle"></i> Shows how conversation themes and topics change in prominence across different time periods.
                     </div>
                     
-                    <div id="topic-evolution-chart" style="min-height: 650px; overflow: visible; width: 100%;"></div>
+                    <div id="topic-evolution-chart" style="height: 650px; width: 100%; position: relative;"></div>
                 </div>
             </div>
 

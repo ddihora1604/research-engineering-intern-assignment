@@ -3505,7 +3505,7 @@ async function updateCommunityDistributionPieChart(query) {
             .attr('height', height)
             .append('g')
             .attr('transform', `translate(${width / 2 + 30},${height / 2})`);
-            
+        
         // Calculate total posts for percentage display
         const totalPosts = subredditData.reduce((sum, item) => sum + item.count, 0);
         
