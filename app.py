@@ -1582,15 +1582,48 @@ def get_dynamic_description():
                     pass
             
             elif section == "semantic_map":
-                # Add context for semantic map
+                # Add context for semantic map with comprehensive details
                 try:
-                    total_posts = context_data.get("total_posts", 0)
-                    cluster_count = context_data.get("cluster_count", 0)
-                    n_neighbors = context_data.get("n_neighbors", 0)
-                    min_dist = context_data.get("min_dist", 0)
-                    enhanced_context = f"The semantic map displays {total_posts} posts from the dataset, grouped into {cluster_count} thematic clusters. The visualization uses UMAP with n_neighbors={n_neighbors} and min_dist={min_dist}."
-                except:
-                    pass
+                                        # Get detailed information about the visualization parameters and data                    # Extract actual data from context_data with proper key paths                    total_posts = context_data.get("points", [])                    total_posts = len(total_posts) if isinstance(total_posts, list) else 0                                        # Get cluster information                    topics = context_data.get("topics", [])                    cluster_count = len(topics) if isinstance(topics, list) else 0                                        # Get UMAP parameters                    umap_params = context_data.get("umap_params", {})                    n_neighbors = umap_params.get("n_neighbors", 15) if isinstance(umap_params, dict) else 15                    min_dist = umap_params.get("min_dist", 0.1) if isinstance(umap_params, dict) else 0.1                                        # Get max_points used for visualization (from request args or default)                    max_points = context_data.get("max_points", 500)
+                    
+                    # Get data related to the user's query to provide specific context
+                    filtered_data = data[data['selftext'].str.contains(query, case=False, na=False) | 
+                                       data['title'].str.contains(query, case=False, na=False)]
+                    
+                    # Count unique authors and communities (subreddits) if available
+                    unique_authors = filtered_data['author'].nunique() if 'author' in filtered_data.columns else 0
+                    
+                    # Get information about communities if available
+                    community_info = ""
+                    if 'subreddit' in filtered_data.columns:
+                        top_communities = filtered_data['subreddit'].value_counts().head(3)
+                        if not top_communities.empty:
+                            communities_list = ", ".join([f"{name} ({count} posts)" for name, count in top_communities.items()])
+                            community_info = f" Content is primarily from these communities: {communities_list}."
+                    
+                    # Extract key topics if available in context_data
+                    topics_info = ""
+                    if "topics" in context_data and context_data["topics"]:
+                        topics = context_data["topics"]
+                        if isinstance(topics, list) and len(topics) > 0:
+                            top_terms = []
+                            for topic in topics[:3]:  # Get top 3 topics
+                                if "terms" in topic and topic["terms"]:
+                                    top_terms.append(", ".join(topic["terms"][:5]))  # Top 5 terms per topic
+                            
+                            if top_terms:
+                                topics_str = "; ".join([f"Topic {i+1}: {terms}" for i, terms in enumerate(top_terms)])
+                                topics_info = f" Major thematic clusters include: {topics_str}."
+                    
+                    # Build comprehensive context with all collected information
+                    enhanced_context = f"The semantic map visualizes {total_posts} posts about '{query}' from the dataset, grouped into {cluster_count} thematic clusters based on their semantic similarity. Posts that discuss similar themes appear closer together in the 2D space.{community_info}{topics_info} The visualization uses UMAP dimensionality reduction (n_neighbors={n_neighbors}, min_dist={min_dist}) to represent high-dimensional text relationships in two dimensions while preserving semantic relationships."
+                    
+                    if unique_authors > 0:
+                        enhanced_context += f" The displayed content was created by {unique_authors} unique authors."
+                        
+                except Exception as e:
+                    # If there was an error, provide more general but still informative context
+                    enhanced_context = f"The semantic map visualizes posts about '{query}' in a 2D space where proximity indicates semantic similarity. Posts with similar themes and language appear clustered together, allowing you to explore the conceptual landscape of the conversation."
             
             # Add general context if no specific enhancement was added
             if not enhanced_context and context_data:
