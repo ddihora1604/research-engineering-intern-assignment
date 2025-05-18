@@ -21,7 +21,32 @@ import math
 import glob
 import re
 import google.generativeai as genai
+import gc
+import psutil
+import logging
+import torch
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Memory management functions
+def get_memory_usage():
+    process = psutil.Process(os.getpid())
+    return process.memory_info().rss / 1024 / 1024  # Convert to MB
+
+def clear_memory():
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+def check_memory_threshold(threshold_mb=400):
+    current_memory = get_memory_usage()
+    if current_memory > threshold_mb:
+        logger.warning(f"Memory usage ({current_memory:.2f}MB) exceeds threshold ({threshold_mb}MB)")
+        clear_memory()
+        return True
+    return False
 
 class SocialMediaConnector:
     """Base class for social media platform data connectors."""
@@ -255,6 +280,31 @@ DATASET_PATH = "./data/data.jsonl"
 
 # Create the platform data manager
 platform_manager = PlatformDataManager()
+
+# Global variables for model caching
+model_cache = {}
+MAX_CACHE_SIZE = 2  # Maximum number of models to keep in cache
+
+def load_model_with_cache(model_name, model_loader):
+    """Load model with caching and memory management"""
+    if model_name in model_cache:
+        return model_cache[model_name]
+    
+    # Check memory before loading new model
+    check_memory_threshold()
+    
+    # Load the model
+    model = model_loader()
+    
+    # Cache management
+    if len(model_cache) >= MAX_CACHE_SIZE:
+        # Remove oldest model from cache
+        oldest_key = next(iter(model_cache))
+        del model_cache[oldest_key]
+        clear_memory()
+    
+    model_cache[model_name] = model
+    return model
 
 # Initialize tokenizer and model for summarization
 try:
