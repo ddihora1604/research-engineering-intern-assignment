@@ -5,6 +5,7 @@
 A powerful, interactive dashboard for analyzing social media conversations, trends, and network dynamics. This tool allows researchers and analysts to explore patterns in social media data, identify key trends, and detect coordinated behavior.
 
 ## [System Architecture Diagram]
+![Uploading System Architecture Diagram.png…]()
 
 ![System Architecture Diagram](C:/Users/ddihora1604/Downloads/SimPPL_Legacy/research-engineering-intern-assignment_1/images/System Architecture Diagram.png)
 
