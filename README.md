@@ -6,7 +6,7 @@ A powerful, interactive dashboard for analyzing social media conversations, tren
 
 ## [System Architecture Diagram]
 
-![System Architecture Diagram](C:/Users/ddihora1604/Downloads/SimPPL_Legacy/research-engineering-intern-assignment_1/images/System Architecture Diagram.png)
+![System Architecture Diagram](images/System_Architecture_Diagram.png)
 
 ## Features
 
