@@ -1,28 +1,23 @@
 # Research Engineering Intern Assignment - Social Media Analysis Dashboard
 
+[Hosted Prototype](YOUR_HOSTED_PROTOTYPE_URL_HERE) | [Video Prototype](YOUR_VIDEO_PROTOTYPE_URL_HERE)
+
 A powerful, interactive dashboard for analyzing social media conversations, trends, and network dynamics. This tool allows researchers and analysts to explore patterns in social media data, identify key trends, and detect coordinated behavior.
 
 ## Features
 
-### Core Analytics
-- **Time Series Analysis**: Track post volume over time to identify peaks, trends, and patterns
-- **Network Visualization**: Explore user interactions through interactive network graphs
-- **Topic Modeling**: Discover key themes and topics using Latent Dirichlet Allocation (LDA)
-- **Coordinated Behavior Detection**: Identify potentially coordinated posting activity 
-- **AI-Generated Insights**: Get AI-powered summaries and analysis of the data
-- **Data Storytelling**: View synthesized narratives that connect insights into a cohesive story
-- **Dynamic Documentation**: Context-aware section descriptions generated in real-time by LLaMA via Groq API
-- **Interactive Chatbot**: Engage with an AI-powered chatbot using Google's Gemini 2.0 Flash model to ask questions about the data
-
-### Technical Capabilities
-- Processes Reddit data from JSONL format
-- Applies natural language processing for content analysis
-- Uses machine learning for topic modeling and pattern recognition
-- Implements network analysis for community and interaction mapping
-- Generates interactive visualizations using D3.js
-- Supports filtering by keywords and date ranges
-- Utilizes LLaMA model via Groq API for real-time, context-aware documentation
-- Integrates Google's Gemini 2.0 Flash model for detailed chatbot responses
+- **Social Media Insights: Trends, Sentiments and Discussions**: Analyzes patterns in social media conversations using natural language processing, tracks sentiment changes through text analysis, and identifies emerging discussion topics using topic modeling
+- **Key Metrics**: Provides essential statistics including post volume, engagement rates, and user activity levels calculated from the dataset
+- **Word Cloud**: Generates interactive word clouds using D3.js, visualizing term frequencies with dynamic sizing and color gradients
+- **Top Contributors**: Identifies and analyzes the most active users based on post frequency, comment counts, and engagement metrics
+- **A Comprehensive Data Story**: Generates AI-powered narratives using LLaMA model via Groq API, synthesizing key insights and patterns from the data
+- **Time Series Analysis**: Tracks post volume and engagement metrics over time using interactive D3.js visualizations with customizable date ranges
+- **Topic Evolution Graph**: Visualizes topic changes over time using LDA (Latent Dirichlet Allocation) with interactive D3.js charts showing topic prevalence trends
+- **Community Distribution Pie Chart**: Displays the distribution of posts and users across different communities using interactive D3.js visualizations
+- **Topic Analysis**: Implements LDA topic modeling with customizable number of topics, word weights, and representative document examples
+- **Semantic Map**: Creates a 2D visualization using UMAP dimensionality reduction and SentenceTransformer embeddings, with interactive clustering and topic labeling
+- **Coordinated Post Groups**: Detects potentially coordinated posting activity using content similarity analysis and temporal pattern recognition
+- **AI-Powered Interactive Chatbot**: Integrates Google's Gemini 2.0 Flash model for natural language queries about the dataset, providing detailed insights and analysis
 
 ## Installation
 
