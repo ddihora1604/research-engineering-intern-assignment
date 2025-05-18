@@ -1,49 +1,9 @@
-/**
- * Social Media Analysis Dashboard - Frontend JavaScript
- * ===================================================
- * 
- * This file contains all the client-side functionality for the Social Media Analysis Dashboard.
- * It handles UI interaction, API calls, data processing, and visualization rendering.
- * 
- * Main Components:
- * ----------------
- * 1. Main UI control handlers:
- *    - Search query processing
- *    - Tab management
- *    - Showing/hiding loading indicators
- *    - Parameter controls (sliders, date ranges)
- * 
- * 2. Data fetching and processing:
- *    - API calls to backend endpoints
- *    - Data transformation for visualizations
- *    - Progressive loading of heavy analyses
- * 
- * 3. Visualization modules:
- *    - Time series graph (post frequency over time)
- *    - Network visualization (user interactions)
- *    - Topic analysis (LDA topic models)
- *    - Coordinated behavior detection
- *    - Word cloud generation
- *    - Key metrics and statistics
- * 
- * 4. Data storytelling functionality:
- *    - Narrative generation from analytical results
- *    - Key insights extraction
- *    - Visual elements to enhance understanding
- * 
- * The dashboard follows a modular design where each analytical component 
- * operates independently but can be integrated into a cohesive data story.
- * Visualizations are rendered using D3.js and other specialized libraries.
- */
-
-// Global state
 let activeQuery = '';
 let startDate = '';
 let endDate = '';
-let uploadedData = true;  // Always treat data as preloaded
-let analysisPerformed = false; // Track if analysis has been performed
+let uploadedData = true;  
+let analysisPerformed = false; 
 
-// Helper to show/hide main loading spinner
 function showLoading(show) {
     const loadingElement = document.getElementById('loading');
     if (show) {
@@ -4738,5 +4698,3 @@ function displayRelatedMetrics(metrics) {
         relatedMetrics.style.display = 'block';
     }
 }
-
-// ... existing code ...

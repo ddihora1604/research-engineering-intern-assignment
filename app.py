@@ -20,9 +20,9 @@ import traceback
 import math
 import glob
 import re
-import google.generativeai as genai  # Add import for Google's Generative AI library
+import google.generativeai as genai
 
-# Data connector framework for multiple platforms
+
 class SocialMediaConnector:
     """Base class for social media platform data connectors."""
     
@@ -296,17 +296,7 @@ except Exception as e:
 
 # Load dataset on startup
 def load_dataset():
-    """
-    Loads and preprocesses the Reddit dataset from the JSONL file.
-    
-    This function:
-    1. Reads the JSONL file into a pandas DataFrame
-    2. Normalizes nested JSON structure 
-    3. Converts Unix timestamps to datetime objects
-    
-    Returns:
-        bool: True if dataset loaded successfully, False otherwise
-    """
+
     global data
     try:
         if os.path.exists(DATASET_PATH):
@@ -327,12 +317,7 @@ def load_dataset():
 
 @app.route('/')
 def index():
-    """
-    Renders the main dashboard page.
-    
-    Returns:
-        HTML: The index.html template that serves as the main dashboard interface
-    """
+
     return render_template('index.html')
 
 @app.route('/api/timeseries', methods=['GET'])
@@ -379,21 +364,7 @@ def get_timeseries():
 
 @app.route('/api/top_contributors', methods=['GET'])
 def get_top_contributors():
-    """
-    Identifies the most active authors for a given search query.
-    
-    This endpoint:
-    1. Filters data based on the search query
-    2. Counts posts by each author
-    3. Returns the top authors by post count
-    
-    Query Parameters:
-        query (str): Search term to filter posts
-        limit (int, optional): Number of top contributors to return (default: 10)
-    
-    Returns:
-        JSON: Array of objects containing author names and their post counts
-    """
+ 
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -409,25 +380,7 @@ def get_top_contributors():
 
 @app.route('/api/network', methods=['GET'])
 def get_network():
-    """
-    Creates a network graph of user interactions for posts matching a query.
-    
-    This endpoint:
-    1. Builds a directed graph where nodes are authors and edges represent interactions
-    2. Sizes nodes based on post count
-    3. Applies community detection to identify clusters of users
-    4. Identifies shared keywords, hashtags, and URLs between authors
-    5. Formats the graph for D3.js visualization
-    
-    Query Parameters:
-        query (str): Search term to filter posts
-        network_type (str, optional): Type of network to generate ('interaction', 'content_sharing')
-        content_type (str, optional): For content_sharing network, what to analyze ('keywords', 'hashtags', 'urls', 'all')
-        min_similarity (float, optional): Minimum similarity threshold for content connections (default: 0.2)
-    
-    Returns:
-        JSON: Object containing nodes and links for network visualization, plus shared content metadata
-    """
+
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -660,23 +613,7 @@ def get_network():
 
 @app.route('/api/topics', methods=['GET'])
 def get_topics():
-    """
-    Performs topic modeling on posts matching a query using LDA.
-    
-    This endpoint:
-    1. Applies Latent Dirichlet Allocation to identify key topics in the content
-    2. Extracts top words for each topic with their weights
-    3. Finds representative documents for each topic
-    4. Analyzes how topics evolve over time
-    
-    Query Parameters:
-        query (str): Search term to filter posts
-        n_topics (int, optional): Number of topics to identify (default: 5)
-    
-    Returns:
-        JSON: Object containing topics, their key words, representative posts,
-              topic evolution over time, and coherence metrics
-    """
+
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -790,23 +727,7 @@ def get_topics():
 
 @app.route('/api/coordinated', methods=['GET'])
 def get_coordinated_behavior():
-    """
-    Detects potentially coordinated posting behavior within the dataset.
-    
-    This endpoint:
-    1. Identifies posts with similar content published within a short time window
-    2. Uses TF-IDF vectorization and cosine similarity to measure content similarity
-    3. Creates a network of authors who post similar content in coordination
-    4. Groups similar posts into coordination clusters
-    
-    Query Parameters:
-        query (str): Search term to filter posts
-        time_window (int, optional): Time window in seconds to consider posts coordinated (default: 3600)
-        similarity_threshold (float, optional): Minimum similarity score to consider posts related (default: 0.7)
-    
-    Returns:
-        JSON: Object containing coordinated networks, groups, and metrics
-    """
+
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -993,20 +914,7 @@ def get_coordinated_behavior():
 
 @app.route('/api/ai_summary', methods=['GET'])
 def get_ai_summary():
-    """
-    Generates an AI-powered summary of posts matching a query.
-    
-    This endpoint:
-    1. Uses either a local T5 model or the Groq API (if configured) to analyze the data
-    2. Extracts key metrics, patterns, and insights
-    3. Produces a comprehensive natural language summary of the findings
-    
-    Query Parameters:
-        query (str): Search term to filter posts
-    
-    Returns:
-        JSON: Object containing the AI-generated summary, metrics, and model information
-    """
+
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -1249,21 +1157,7 @@ def generate_structured_t5_summary(summary_context, tokenizer, model, query):
 
 @app.route('/api/common_words', methods=['GET'])
 def get_common_words():
-    """
-    Identifies the most common words in posts matching a query.
-    
-    This endpoint:
-    1. Filters posts based on the search query
-    2. Tokenizes and counts word frequency across all posts
-    3. Returns the most common words with their counts
-    
-    Query Parameters:
-        query (str): Search term to filter posts
-        limit (int, optional): Number of common words to return (default: 50)
-    
-    Returns:
-        JSON: Array of objects containing words and their occurrence counts
-    """
+
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -1297,23 +1191,7 @@ def get_common_words():
 
 @app.route('/api/dynamic_description', methods=['GET'])
 def get_dynamic_description():
-    """
-    Generates dynamic, contextual descriptions for dashboard sections using the Groq API.
-    
-    This endpoint:
-    1. Takes the current section, query, and available data metrics
-    2. Uses the LLaMA model via Groq to generate relevant, insightful descriptions
-    3. Returns customized documentation that explains the data in context
-    
-    Query Parameters:
-        section (str): The dashboard section requiring documentation
-        query (str): The current search query
-        data_context (str, optional): JSON string with relevant metrics for context
-        detail_level (str, optional): Level of detail for descriptions (basic, detailed, expert)
-    
-    Returns:
-        JSON: Object containing the generated description
-    """
+
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -1723,23 +1601,7 @@ def get_dynamic_description():
 
 @app.route('/api/semantic_map', methods=['GET'])
 def get_semantic_map():
-    """
-    Generates semantic embeddings for posts matching a query and creates a 2D visualization map.
-    
-    This endpoint:
-    1. Filters posts based on the search query
-    2. Generates semantic embeddings using a pre-trained language model
-    3. Applies dimensionality reduction (UMAP) to create a 2D representation
-    4. Returns the 2D points with metadata for visualization
-    
-    Query Parameters:
-        query (str): Search term to filter posts
-        max_points (int, optional): Maximum number of posts to include (default: 500)
-        min_cluster_size (int, optional): Minimum cluster size for HDBSCAN (default: 5)
-    
-    Returns:
-        JSON: Object containing 2D points, metadata, and cluster assignments
-    """
+
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -1880,22 +1742,7 @@ def get_semantic_map():
 
 @app.route('/api/chatbot', methods=['POST'])
 def chatbot_response():
-    """
-    Processes user queries about the dataset and returns AI-generated insights.
-    
-    This endpoint:
-    1. Takes a user's natural language query about the data
-    2. Analyzes relevant data based on the query
-    3. Generates a contextual response with insights and trend analysis
-    4. Optionally includes relevant metrics and visualizations references
-    
-    Request Body:
-        query (str): The user's question or request
-        context (dict, optional): Additional context from previous interactions
-    
-    Returns:
-        JSON: Object containing the chatbot response, relevant metrics, and visualization suggestions
-    """
+
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -2510,24 +2357,7 @@ event_database = {
 
 @app.route('/api/events', methods=['GET'])
 def get_historical_events():
-    """
-    Retrieves historical events related to a search query and correlates them with social media activity.
-    
-    This endpoint:
-    1. Takes a search query and date range
-    2. Identifies relevant real-world events from reliable sources
-    3. Maps these events to peaks or patterns in the social media data
-    4. Returns the correlated events with contextual information
-    
-    Query Parameters:
-        query (str): Search term to match events and filter posts
-        start_date (str, optional): Start date for filtering (YYYY-MM-DD)
-        end_date (str, optional): End date for filtering (YYYY-MM-DD)
-    
-    Returns:
-        JSON: Object containing events, their correlation to social media activity, 
-              and contextual information about the relationship
-    """
+
     if data is None:
         return jsonify({'error': 'No data loaded'}), 400
     
@@ -2755,24 +2585,7 @@ def get_historical_events():
 
 @app.route('/api/semantic_search', methods=['GET'])
 def semantic_search():
-    """
-    Performs semantic search on posts containing a specific URL.
-    
-    This endpoint:
-    1. Retrieves posts containing the specified URL
-    2. Generates semantic embeddings for these posts
-    3. Computes semantic similarity with the search query
-    4. Returns the most semantically relevant results
-    
-    Query Parameters:
-        url (str): URL to search for in posts
-        query (str): Search query for semantic matching
-        platform (str, optional): Specific platform to search (default: all platforms)
-        max_results (int, optional): Maximum number of results to return (default: 20)
-    
-    Returns:
-        JSON: Object containing semantically ranked results
-    """
+
     global platform_manager, data
     
     # Check if data is available
@@ -2918,24 +2731,7 @@ def semantic_search():
 
 @app.route('/api/semantic_query', methods=['GET'])
 def semantic_query():
-    """
-    Performs semantic search across all posts in the dataset.
-    
-    This endpoint:
-    1. Takes a natural language query
-    2. Generates semantic embeddings for the query and posts
-    3. Finds posts that are semantically similar to the query
-    4. Returns ranked results based on semantic similarity
-    
-    Query Parameters:
-        query (str): Natural language query for semantic search
-        platform (str, optional): Specific platform to search (default: all platforms)
-        max_results (int, optional): Maximum number of results to return (default: 20)
-        min_similarity (float, optional): Minimum similarity score threshold (default: 0.5)
-    
-    Returns:
-        JSON: Object containing semantically ranked search results
-    """
+
     global platform_manager, data, semantic_model
     
     # Check if data is available
