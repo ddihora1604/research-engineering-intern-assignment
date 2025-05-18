@@ -1,6 +1,6 @@
 # Research Engineering Intern Assignment - Social Media Analysis Dashboard
 
-[Hosted Prototype](YOUR_HOSTED_PROTOTYPE_URL_HERE) | [Video Prototype](YOUR_VIDEO_PROTOTYPE_URL_HERE)
+[Video Prototype](https://youtu.be/NcDHtAqIb8Q)
 
 A powerful, interactive dashboard for analyzing social media conversations, trends, and network dynamics. This tool allows researchers and analysts to explore patterns in social media data, identify key trends, and detect coordinated behavior.
 
