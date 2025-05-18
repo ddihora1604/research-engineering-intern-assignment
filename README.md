@@ -4,8 +4,7 @@
 
 A powerful, interactive dashboard for analyzing social media conversations, trends, and network dynamics. This tool allows researchers and analysts to explore patterns in social media data, identify key trends, and detect coordinated behavior.
 
-## [System Architecture Diagram]
-![Uploading System Architecture Diagram.png…]()
+## [System_Architecture_Diagram]
 
 ![System Architecture Diagram](images/System_Architecture_Diagram.png)
 
@@ -30,6 +29,7 @@ A powerful, interactive dashboard for analyzing social media conversations, tren
 .
 ├── data/
 │   └── data.jsonl    # Input data file for analysis
+├── images/           # System architecture and UI screenshots
 ├── static/
 │   └── js/
 │       └── dashboard.js # Frontend JavaScript for dashboard interactivity and visualizations
@@ -125,15 +125,51 @@ Each line should contain a separate JSON object with a "data" field that contain
 
 ## Screenshots of the Platform
 
-### [Screenshot Title 1]
+### [Dashboard]
 
-![Screenshot 1 Description](path/to/your/screenshot1.png)
+![Dashboard](images/Dashboard.png)
 
-### [Screenshot Title 2]
+### [Social_Media_Insights_and_Key Metrics]
 
-![Screenshot 2 Description](path/to/your/screenshot2.png)
+![Social_Media_Insights_and_Key Metrics](images/Social_Media_Insights_and_Key_Metrics.png)
 
-// Add more screenshot entries as needed following the same pattern
+### [Word_Cloud_and_Top_Contributors]
+
+![Word_Cloud_and_Top_Contributors](images/Word_Cloud_and_Top_Contributors.png)
+
+### [Comprehensive_Data_Story]
+
+![Comprehensive_Data_Story](images/Comprehensive_Data_Story.png)
+
+### [Time_Series_Graph]
+
+![Time_Series_Graph](images/Time_Series_Graph.png)
+
+### [Topic_Evolution_Graph]
+
+![Topic_Evolution_Graph](images/Topic_Evolution_Graph.png)
+
+### [Community_Distribution_Pie_Chart]
+
+![Community_Distribution_Pie_Chart](images/Community_Distribution_Pie_Chart.png)
+
+### [Topic_Analysis]
+
+![Topic_Analysis](images/Topic_Analysis.png)
+
+### [Semantic_Map]
+
+![Semantic_Map](images/Semantic_Map.png)
+
+### [Contributors_Post_Groups]
+
+![Contributors_Post_Groups](images/Contributors_Post_Groups.png)
+
+### [AI-powered_Interactive_Chatbot]
+
+![AI-powered_Interactive_Chatbot](images/AI-powered_Interactive_Chatbot.png)
+
+
 
 Made with love by Darshan Dihora ❤️
 
