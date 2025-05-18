@@ -20,5 +20,3 @@ umap-learn
 sentence-transformers
 scipy
 google-generativeai
-gunicorn
-psutil
