@@ -1,6 +1,6 @@
 # Research Engineering Intern Assignment - Social Media Analysis Dashboard
 
-[Video Prototype](https://youtu.be/NcDHtAqIb8Q)
+[Hosted Website](20.244.49.140) | [Video Prototype](https://youtu.be/t_dPmjmsaB0)
 
 A powerful, interactive dashboard for analyzing social media conversations, trends, and network dynamics. This tool allows researchers and analysts to explore patterns in social media data, identify key trends, and detect coordinated behavior.
 
@@ -31,8 +31,9 @@ A powerful, interactive dashboard for analyzing social media conversations, tren
 │   └── data.jsonl    # Input data file for analysis
 ├── images/           # System architecture and UI screenshots
 ├── static/
-│   └── js/
-│       └── dashboard.js # Frontend JavaScript for dashboard interactivity and visualizations
+│   └── js/                 # Frontend JavaScript for dashboard interactivity and visualizations
+│       └── dashboard.js
+|       └── metrics.js 
 ├── templates/
 │   └── index.html    # HTML template for the main dashboard page
 ├── app.py            # Main Flask application entry point and backend logic
@@ -170,152 +171,4 @@ Each line should contain a separate JSON object with a "data" field that contain
 ![AI-powered_Interactive_Chatbot](images/AI-powered_Interactive_Chatbot.png)
 
 
-
 Made with love by Darshan Dihora ❤️
-
-## Dashboard Navigation Flowchart
-
-```
-+-------------------+     +-----------------+     +----------------------+
-|                   |     |                 |     |                      |
-|  DASHBOARD ENTRY  |---->|  ENTER QUERY    |---->|  APPLY FILTERS       |
-|                   |     |                 |     |                      |
-+-------------------+     +-----------------+     +----------------------+
-                                                            |
-                                                            v
-+---------------------+     +-------------------+     +----------------------+
-|                     |     |                   |     |                      |
-|  CHATBOT INTERFACE  |<----|  ANALYSIS RESULTS |<----|  CLICK "ANALYZE"     |
-|                     |     |                   |     |                      |
-+---------------------+     +-------------------+     +----------------------+
-         ^                           |
-         |                           v
-         |    +--------------------------------------------------+
-         |    |                                                  |
-         |    |               PRIMARY DASHBOARD                  |
-         |    |                                                  |
-         |    +--------------------------------------------------+
-         |                 |               |               |
-         |                 v               v               v
-+-----------------+  +--------------+ +--------------+ +--------------+
-|                 |  |              | |              | |              |
-| NATURAL LANGUAGE|  | KEY METRICS  | | WORD CLOUD & | | DATA STORY   |
-| QUERY INTERFACE |  | SECTION      | | CONTRIBUTORS | | SECTION      |
-|                 |  |              | |              | |              |
-+-----------------+  +--------------+ +--------------+ +--------------+
-                              |               |               |
-                              v               v               v
-                     +--------------+ +--------------+ +--------------+
-                     |              | |              | |              |
-                     | TIME SERIES  | | TOPIC        | | COMMUNITY    |
-                     | ANALYSIS     | | EVOLUTION    | | DISTRIBUTION |
-                     |              | |              | |              |
-                     +--------------+ +--------------+ +--------------+
-                              |               |               |
-                              v               v               v
-                     +--------------+ +--------------+ +--------------+
-                     |              | |              | |              |
-                     | TOPIC        | | SEMANTIC     | | COORDINATED  |
-                     | ANALYSIS     | | MAP          | | POST GROUPS  |
-                     |              | |              | |              |
-                     +--------------+ +--------------+ +--------------+
-```
-
-This flowchart illustrates the user journey through the dashboard, including:
-- Entry point: Entering a query in the search interface
-- Exploration of key metrics section (post volume, engagement rates, user activity)
-- Viewing insight visualizations (word cloud, top contributors)
-- Analyzing time-based data through time series and topic evolution graphs
-- Exploring community distribution and topic analysis sections
-- Interacting with the AI-powered chatbot for custom inquiries
-- Navigation paths between different dashboard components
-
-The flowchart provides a clear visual guide to help users understand the logical progression and interaction possibilities within the dashboard interface.
-
-## System Architecture Diagram
-
-```
-┌───────────────────────────────────────────────────────────────────┐
-│                        USER BROWSER                               │
-└───────────────────────────────────────────────────────────────────┘
-                               │
-                               ▼
-┌───────────────────────────────────────────────────────────────────┐
-│                FRONTEND (HOSTED ON NETLIFY)                       │
-│                                                                   │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐    │
-│  │ HTML/CSS        │  │ JavaScript (D3) │  │ Dashboard UI    │    │
-│  │ Components      │  │ Visualizations  │  │ Components      │    │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘    │
-│                                                                   │
-└───────────────────────────────────────────────────────────────────┘
-                               │
-            API Requests       │       API Responses
-                               ▼
-┌───────────────────────────────────────────────────────────────────┐
-│                BACKEND (HOSTED ON RENDER)                         │
-│                                                                   │
-│  ┌─────────────────────────────────────────────────────────────┐  │
-│  │                     Flask Application                       │  │
-│  │                                                             │  │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │  │
-│  │  │ API Routes  │  │ Controllers │  │ Data Processing     │ │  │
-│  │  │             │  │             │  │ & Analysis Logic    │ │  │
-│  │  └─────────────┘  └─────────────┘  └─────────────────────┘ │  │
-│  │                                                             │  │
-│  └─────────────────────────────────────────────────────────────┘  │
-│                               │                                    │
-│                               ▼                                    │
-│  ┌─────────────────────────────────────────────────────────────┐  │
-│  │                      Data Layer                             │  │
-│  │                                                             │  │
-│  │     ┌───────────────┐            ┌───────────────────┐     │  │
-│  │     │ data.jsonl    │            │ Processed Cache   │     │  │
-│  │     │ (Reddit Data) │            │                   │     │  │
-│  │     └───────────────┘            └───────────────────┘     │  │
-│  │                                                             │  │
-│  └─────────────────────────────────────────────────────────────┘  │
-│                                                                   │
-└───────────────────────────────────────────────────────────────────┘
-                 │                               │
-                 ▼                               ▼
-┌────────────────────────┐       ┌──────────────────────────────────┐
-│ GROQ API               │       │ GOOGLE GEMINI API                │
-│                        │       │                                  │
-│ ┌────────────────────┐ │       │ ┌────────────────────────────┐  │
-│ │ LLaMA Model        │ │       │ │ Gemini 2.0 Flash Model     │  │
-│ │ (Data Story Gen.)  │ │       │ │ (Interactive Chatbot)      │  │
-│ └────────────────────┘ │       │ └────────────────────────────┘  │
-└────────────────────────┘       └──────────────────────────────────┘
-```
-
-This diagram details the complete system architecture of the project, showing:
-
-1. **Frontend (Hosted on Netlify)**
-   - User interface components (dashboard, visualizations, chatbot interface)
-   - JavaScript libraries (D3.js for visualizations)
-   - Client-side processing and rendering
-
-2. **Backend (Hosted on Render)**
-   - Flask application server
-   - Data processing modules
-   - API integration handlers
-
-3. **Data Flow**
-   - How data from data.jsonl is loaded and processed
-   - Data transformation and analysis pipelines
-   - Caching mechanisms for performance optimization
-
-4. **External API Integration**
-   - Groq API for LLaMA model access (comprehensive data story generation)
-   - Google Gemini API for interactive chatbot functionality
-   - Authentication and request/response handling
-
-5. **Response Rendering**
-   - How processed data and API responses are formatted
-   - Delivery back to the frontend
-   - Real-time updates and asynchronous processing
-
-This architecture diagram provides a comprehensive overview of how all components interact, from user input to data processing and visualization rendering.
-
-
