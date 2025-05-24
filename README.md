@@ -92,7 +92,7 @@ A powerful, interactive dashboard for analyzing social media conversations, tren
 
 ### Using the Dashboard
 
-1. Enter your query or let the chatbot refine your query.
+1. Enter your query (e.g. trump, books, covid, etc.) or let the chatbot refine your query.
 2. Click on the Analyze button after adding filters.
 3. View insights on Key Metrics, Word Cloud, Top Contributors and Data Story.
 4. Time Series Trends, Community Distribution, Topic Trends and Contribution Posts.
