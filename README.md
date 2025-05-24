@@ -1,6 +1,6 @@
 # Research Engineering Intern Assignment - Social Media Analysis Dashboard
 
-[Hosted Website](20.244.49.140) | [Video Prototype](https://youtu.be/t_dPmjmsaB0)
+[Hosted Website](http://20.244.49.140) | [Video Prototype](https://youtu.be/t_dPmjmsaB0)
 
 A powerful, interactive dashboard for analyzing social media conversations, trends, and network dynamics. This tool allows researchers and analysts to explore patterns in social media data, identify key trends, and detect coordinated behavior.
 
@@ -171,4 +171,4 @@ Each line should contain a separate JSON object with a "data" field that contain
 ![AI-powered_Interactive_Chatbot](images/AI-powered_Interactive_Chatbot.png)
 
 
-Made with love by Darshan Dihora ❤️
+Made with love by Darshan Dihora! ❤️
