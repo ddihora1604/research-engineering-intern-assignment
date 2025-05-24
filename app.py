@@ -2902,4 +2902,4 @@ if __name__ == '__main__':
         os.makedirs("./data", exist_ok=True)
         print("Created data directory. Please place your data.jsonl file in the ./data folder.")
     
-    app.run(debug=True) 
+    app.run(debug=True, host='0.0.0.0', port=80) 
